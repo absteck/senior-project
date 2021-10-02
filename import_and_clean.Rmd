@@ -1,0 +1,367 @@
+---
+title: "Import and Clean"
+author: "Abby Steckel"
+date: "9/23/2021"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Would be good to put all data files in same folder and setwd() at beginning of this file 
+### Set working directory
+```{r}
+setwd("~/Users/abbysteckel/Desktop/S&DS_491/Sentencing_Data/")
+getwd()
+```
+*notes on file organization*
+
+### Attempt to read SPSS data as text without setup file 
+```{r}
+#there do not appear to be column names in the text file 
+#error: line 1 did not have 75 elements 
+text <- read.table("/Users/abbysteckel/Desktop/spss_2000/DS0001/spss_2000_data.txt", as.is=TRUE, header=F)
+```
+
+### Attempt to read ASCII text data
+```{r}
+#error: line 1 did not have 75 elements
+#not sure why it thinks there are only 75 elements, should be hundreds 
+text2 <- read.table("/Users/abbysteckel/Desktop/ASCII_2000/DS0001/ASCII_2000_data.txt", as.is = TRUE, header = F)
+```
+
+### The only other file format available for 2000-2005 is SAS. The data is stored in the same .txt file as ASCII and SPSS, with a .sas setup file. 
+
+### Read SPSS .sav data using haven package
+```{r}
+library(haven)
+spss_2006_data <- read_sav("spss_2006_data.sav")
+head(spss_2006_data)
+d06 <- spss_2006_data
+names(d06)[1:10] #variables have correct names 
+dim(d06) #72585 x 825 
+
+#compare to foreign package:
+library(foreign)
+data2006 <- read.spss("spss_2006_data.sav", to.data.frame=TRUE, use.value.labels = FALSE)
+head(data2006)
+names(data2006)[1:10]
+dim(data2006)
+#get same dimensions and same variable names
+
+#seems like both haven and foreign work well when the data is in a .sav file format 
+```
+
+### Read SPSS data using ASCII Setup Reader and foreign packages 
+```{r}
+library(asciiSetupReader)
+#2000 DATA 
+setup2000 <- asciiSetupReader::parse_setup('spss_2000_setup.sps')
+setup2000$setup 
+setup2000$missing
+
+data2000 <- read_ascii_setup("spss_2000_data.txt.zip", "spss_2000_setup.sps", use_clean_names = FALSE)
+head(data2000)
+#dim(data2000)
+
+#2001 DATA 
+setup2001 <- asciiSetupReader::parse_setup('spss_2001_setup.sps')
+#setup2001$setup #255 columns 
+#setup2001$missing # no missing values 
+data2001 <- read_ascii_setup("spss_2001_data.txt.zip", "spss_2001_setup.sps", use_clean_names = FALSE)
+#head(data2001)
+
+#2002 DATA 
+setup2002 <- asciiSetupReader::parse_setup('spss_2002_setup.sps')
+#setup2002$setup #302 columns 
+#setup2002$missing # no missing values 
+data2002 <- read_ascii_setup("spss_2002_data.txt.zip", "spss_2002_setup.sps", use_clean_names = FALSE)
+
+#2003 DATA 
+setup2003 <- asciiSetupReader::parse_setup('spss_2003_setup.sps')
+#setup2003$setup #306 columns 
+#setup2003$missing # no missing values 
+data2003 <- read_ascii_setup("spss_2003_data.txt.zip", "spss_2003_setup.sps", use_clean_names = FALSE)
+
+#2004 DATA 
+setup2004 <- asciiSetupReader::parse_setup('spss_2004_setup.sps')
+#setup2004$setup #459 columns 
+#setup2004$missing # no missing values 
+data2004 <- read_ascii_setup("spss_2004_data.txt.zip", "spss_2004_setup.sps", use_clean_names = FALSE)
+
+#2005 DATA 
+setup2005 <- asciiSetupReader::parse_setup('spss_2005_setup.sps')
+#setup2005$setup #491 columns 
+#setup2005$missing # no missing values 
+data2005 <- read_ascii_setup("spss_2005_data.txt.zip", "spss_2005_setup.sps", use_clean_names = FALSE)
+
+#2006 DATA - note .sav extension. When I read in, I get message: "re-encoding from CP1252," which I believe means that the numeric values of a lot of levels have changed, so probably safest to convert to characters and re-code according to the codebook 
+library(foreign)
+data2006 <- read.spss("spss_2006_data.sav", to.data.frame=TRUE, use.value.labels = FALSE)
+
+#2007 DATA 
+data2007 <- read.spss("spss_2007_data.sav", to.data.frame=TRUE, use.value.labels = FALSE)
+
+#2008 DATA 
+data2008 <- read.spss("spss_2008_data.sav", to.data.frame=TRUE, use.value.labels = FALSE)
+
+#check for missing values identified in the SPSS setup file 
+head(data2000)
+
+```
+
+### Select variables for use in models 
+```{r}
+#These are the same variables that Hagen selected from the BJS dataset, except for OFFTYPE2, which is my replacement for TTIGRON, which I can't find
+
+#from 2000-2003, there was a sentdate variable. beginning in 2004, it became sentyr and sentmon 
+vars00 <- c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMHIST", "XCRHISSR", "NOCOUNTS", "CRIMPTS", "NEWCNVTN", "SENTDATE", "DISTRICT", "OFFTYPE2")
+
+vars04 <- c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMHIST", "XCRHISSR", "NOCOUNTS", "CRIMPTS", "NEWCNVTN", "SENTYR", "DISTRICT", "OFFTYPE2")
+```
+
+### Rename variables and force same data types across years 
+```{r}
+#subset the 2000 data to only subjects who were sentenced on or after Jan 1, 2000
+data2000 <- data2000[substr(as.character(data2000$DATE_ON_WHICH_DEFENDANT_WAS_SENTENCED), 5, 8) == "2000", ]
+
+#rename columns to have the same names as Hagen assigned
+hagen_names <- c("SENTENCE", "AGE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "CATEGORY", "NOCOUNTS", "POINTS", "TRIAL", "YR", "DISTRICT", "PRIM_OFFENSE")
+
+renameHagen <- function(df, old_names){
+  for(i in 1:length(old_names)){
+    names(df)[names(df) == old_names[i]] <- hagen_names[i]
+  }
+  return(df)
+}
+
+data2008 <- renameHagen(data2008, vars06)
+data2007 <- renameHagen(data2007, vars06)
+data2006 <- renameHagen(data2006, vars06)
+data2005 <- renameHagen(data2005, vars04)
+data2004 <- renameHagen(data2004, vars04)
+data2003 <- renameHagen(data2003, vars01)
+data2002 <- renameHagen(data2002, vars01)
+data2001 <- renameHagen(data2001, vars01)
+data2000 <- renameHagen(data2000, vars00)
+
+#subset each dataset to just the columns of interest
+data2000 <- data2000[,hagen_names]
+data2001 <- data2001[,hagen_names]
+data2002 <- data2002[,hagen_names]
+data2003 <- data2003[,hagen_names]
+data2004 <- data2004[,hagen_names]
+data2005 <- data2005[,hagen_names]
+data2006 <- data2006[,hagen_names]
+data2007 <- data2007[,hagen_names]
+data2008 <- data2008[,hagen_names]
+
+#clean 2000-2004 dates 
+data2000$YR <- substr(as.character(data2000$YR), 5,8)
+data2001$YR <- substr(as.character(data2001$YR), 5,8)
+data2002$YR <- substr(as.character(data2002$YR), 7,10)
+data2003$YR <- substr(as.character(data2003$YR), 8,11)
+data2004$YR <- substr(as.character(data2004$YR), 8,11)
+
+#data types: 
+#sentence in 2006, 2007, 2008 is a factor -- convert to char
+#age: num 
+#male: factor in 06-08. convert to char 
+#education: char in 2000-2005, factor in 2006-2008 
+#hispanic: "
+#uscitizen "
+#criminal: char in 2000-2003, num in 2005, factor in 2006-2008 
+#category: num 
+#nocounts: num 
+#points: char in 2000-05, factor 06-08
+#trial: char 2000-05, factor 
+#yr: char 2000-04, then num 
+#district: num 2000-06, factor 07-08 
+#prim_offense: char, factor 06-08
+
+#I made everything except district data into character vectors for ease of combining rows. 
+#I plan to convert to the appropriate data types after combining 
+
+#variables to convert to characters 
+char_vars <- c("SENTENCE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "POINTS", "TRIAL", "YR", "PRIM_OFFENSE")
+dfs <- list(data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008) 
+#well, this is embarassing... couldn't figure out how perform same operation on the dfs list 
+
+for(var in char_vars){
+  data2000[,var] <- as.character(data2000[,var])
+}
+for(var in char_vars){
+  data2001[,var] <- as.character(data2001[,var])
+}
+for(var in char_vars){
+  data2002[,var] <- as.character(data2002[,var])
+}
+for(var in char_vars){
+  data2003[,var] <- as.character(data2003[,var])
+}
+for(var in char_vars){
+  data2004[,var] <- as.character(data2004[,var])
+}
+for(var in char_vars){
+  data2005[,var] <- as.character(data2005[,var])
+}
+for(var in char_vars){
+  data2006[,var] <- as.character(data2006[,var])
+}
+for(var in char_vars){
+  data2007[,var] <- as.character(data2007[,var])
+}
+for(var in char_vars){
+  data2008[,var] <- as.character(data2008[,var])
+}
+data2007$DISTRICT <- as.numeric(data2007$DISTRICT)
+data2008$DISTRICT <- as.numeric(data2008$DISTRICT)
+```
+
+### Combine data for all years 
+```{r}
+combine <- bind_rows(data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008)
+
+if(nrow(data2000) + nrow(data2001) + nrow(data2002) + nrow(data2003) + nrow(data2004) + nrow(data2005) + nrow(data2006) + nrow(data2007) + nrow(data2008) != nrow(combine)){
+  print("dimension mismatch")
+} # we get the expected number of rows: 652157
+
+#if we replace all blanks with NAs, # of complete rows = 449658
+nrow(combine[complete.cases(na_if(combine, "")),])
+
+#write combined data to compressed file 
+library(dplyr)
+library(crunch)
+write.csv.gz(combine, "/Users/abbysteckel/Desktop/combined.csv.gz")
+
+#smaller test file
+write.csv.gz(combine[1:100, ], "/Users/abbysteckel/Desktop/test.csv.gz")
+```
+
+### Reading in .csv.gz files
+```{r}
+library(R.utils)
+test <- read.csv('/Users/abbysteckel/Desktop/test.csv.gz')
+
+combine <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
+
+head(combine)
+dim(combine) #652157 rows. 
+#problem: blank spaces won't be filtered out by na.omit or complete.cases 
+library(tidyverse)
+combine <- na_if(combine, "")
+```
+
+### Reformatting data  
+```{r}
+#Create indicators for year of sentencing 
+combine$YR2001 <- ifelse(combine$YR == "2001", 1, 0)
+combine$YR2002 <- ifelse(combine$YR == "2002", 1, 0)
+combine$YR2003 <- ifelse(combine$YR == "2003", 1, 0)
+combine$YR2004 <- ifelse(combine$YR == "2004", 1, 0)
+combine$YR2005 <- ifelse(combine$YR == "2005", 1, 0)
+combine$YR2006 <- ifelse(combine$YR == "2006", 1, 0)
+combine$YR2007 <- ifelse(combine$YR == "2007", 1, 0)
+combine$YR2008 <- ifelse(combine$YR == "2008", 1, 0)
+
+#create indicators for highest education level achieved. note that there was slight variation in the level labels between years, hence the need for a bit of cleaning
+#if education = "high school graduate" or "GED (general education diploma)" 
+combine$HSGED <- ifelse(tolower(combine$EDUCATN) %in% c("g.e.d.", "high school graduate", "g.e.d. (general education diploma)"), 1, 0)
+
+#if education = "one year of college / freshman", "two years of college / sophomore", "three years of college / junior", "some trade or vocational school", "some college" 
+combine$SOMEPOSTHS <- ifelse(tolower(combine$EDUCATN) %in% c("three years college", "some college", "three years of college /junior", "two years of college /sophomore", "one year of college /freshman", "some trade or vocational school", "two years of college/sophomore", "one year of college/freshman", "two years of college / sophomore", "one year of college / freshman", "three years of college / junior", "some trade/vocationl", "one year of college"), 1, 0)
+
+#if education = "college graduate", "Trade or vocational degree", "Associate degree (A.A.)", "Graduate degree (MST, J.D., M.D., PH.D., etc)", "Some graduate school" 
+combine$POSTHSDEGREE <- ifelse(tolower(combine$EDUCATN) %in% c("college graduate", "grad degree", "associate degree", "grad degree (mst, j.d., m.d., ph.d., etc", "graduate degree (mst, j.d., m.d., ph.d., etc)", "trade/vocational deg", "some graduate school", "trade or vocational degree", "associate degree (a.a.)"), 1, 0)
+
+#look at complete cases minus YR and EDUCATN, which became more precise indicators 
+complete <- combine[complete.cases(combine[,-c(4, 12)]), ]
+nrow(complete) #463451. the number of sentence observations in Hagen's paper is 525509 (p. 24)  
+
+#for SENTENCE data, I will set "990 months or more" to 990/12 = 82.5  
+complete$SENTENCE[tolower(complete$SENTENCE) == "990 months or more"] <- "82.5"
+complete$SENTENCE[tolower(complete$SENTENCE) == "life"] <- ifelse(complete$HISPANIC[tolower(complete$SENTENCE) == "life"] == "Hispanic", "81.8", "78.8")
+
+#create SWB indicator of whether the case district is in the Southwest Border regin
+complete$SWB <- ifelse(complete$DISTRICT %in% c(41, 42, 84, 70, 74), 1, 0)
+
+#create offense category indicators
+complete$CATEGORY2 <- ifelse(complete$CATEGORY == 2, 1, 0)
+complete$CATEGORY3 <- ifelse(complete$CATEGORY == 3, 1, 0)
+complete$CATEGORY4 <- ifelse(complete$CATEGORY == 4, 1, 0)
+complete$CATEGORY5 <- ifelse(complete$CATEGORY == 5, 1, 0)
+complete$CATEGORY6 <- ifelse(complete$CATEGORY == 6, 1, 0)
+
+#convert to correct data types 
+complete$SENTENCE <- as.numeric(complete$SENTENCE)
+complete$AGE <- as.numeric(complete$AGE)
+complete$MALE <- ifelse(complete$MALE == "Male", 1, 0)
+complete$HISPANIC <- ifelse(complete$HISPANIC == "Hispanic", 1, 0)
+complete$USCITIZEN <- ifelse(tolower(complete$USCITIZEN) %in% c("united states citizen", "u.s."), 1, 0)
+complete$CRIMINAL <- ifelse(tolower(complete$CRIMINAL) %in% c("no criminal history", "0"), 0, 1)
+complete$TRIAL <- ifelse(complete$TRIAL == "Trial", 1, 0)
+complete$POINTS[tolower(complete$POINTS) == "no history pts appld"] <- 0
+complete$POINTS[tolower(complete$POINTS) == "no history points applied"] <- 0
+complete$POINTS <- as.numeric(complete$POINTS)
+complete$NOCOUNTS <- as.numeric(complete$NOCOUNTS)
+```
+
+### Comparison to Hagen Table 1 
+```{r}
+#number of complete observations: 463451
+nrow(complete)
+
+#Hagen num obs: 525509
+#average sentence: 56.41. Hagen: 56.782 
+mean(complete$SENTENCE) 
+
+#Hagen num obs: 603635
+#average age: 34.12. Hagen: 34.52
+mean(complete$AGE)
+
+#percent of population that's male: 89.11. Hagen: 86.38
+mean(complete$MALE) 
+
+#percent high school or GED: 28.29. Hagen: 29.70
+mean(complete$HSGED)
+
+#percent some post high school: 13.21. Hagen: 15.17
+mean(complete$SOMEPOSTHS)
+
+mean(complete$POSTHSDEGREE) #6.19. Hagen: 7.63
+
+#Hagen num obs: 618825
+mean(complete$HISPANIC) #43.48. Hagen: 40.07
+
+mean(complete$USCITIZEN) #62.43. Hagen: 60.79
+
+#Hagen num obs: 618825, length(na.omit(combine$CRIMINAL)) = 617678
+mean(complete$CRIMINAL) #77.15. Hagen: 70.23... uh oh this is a big gap 
+#crim <- ifelse(tolower(na.omit(combine$CRIMINAL)) %in% c("no criminal history", "0"), 0, 1)
+#mean(crim): 73.9
+
+mean(complete$NOCOUNTS) #1.52. Hagen: 1.46 
+```
+
+### Comparison to Hagen Table 4
+```{r}
+#subset data for immigration offenses 
+imm <- complete[complete$PRIM_OFFENSE == "Immigration", ]
+nrow(imm) #N = 116770. Hagen: 111774. Uh oh again - 5000 seems like a substantial discrepancy 
+
+#split into SWB and non-SWB region - the Ns are very off (compare to Hagen p. 30) 
+imm_swb <- imm[imm$SWB == 1, ]
+imm_notswb <- imm[imm$SWB == 0, ]
+nrow(imm_swb)
+nrow(imm_notswb)
+
+lm_imm_swb <- lm(SENTENCE ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2001 + YR2002 + YR2003 + YR2004 + YR2005 + YR2006 + YR2007 + YR2008, data = imm_swb)
+summary(lm_imm_swb)
+
+lm_imm_notswb <- lm(SENTENCE ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2001 + YR2002 + YR2003 + YR2004 + YR2005 + YR2006 + YR2007 + YR2008, data = imm_notswb)
+summary(lm_imm_notswb)
+```
+*Most of these coefficients have the same direction and order of magnitude as those reported by Hagen in Table 4. But the coefficients still seem unacceptably inconsistent*
