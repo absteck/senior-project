@@ -1,7 +1,7 @@
 ---
 title: "Import and Clean"
 author: "Abby Steckel"
-date: "9/23/2021"
+date: "10/2/2021"
 output:
   html_document: default
   word_document: default
@@ -20,28 +20,26 @@ setwd("/Users/abbysteckel/Desktop/S&DS_491/sentencing_data/")
 ```{r}
 #error: line 1 did not have 75 elements
 #not sure why it thinks there are only 75 elements, should be hundreds 
-text2 <- read.table("/Users/abbysteckel/Desktop/ASCII_2000/DS0001/ASCII_2000_data.txt", as.is = TRUE, header = F)
+# text2 <- read.table("/Users/abbysteckel/Desktop/ASCII_2000/DS0001/ASCII_2000_data.txt", as.is = TRUE, header = F) #error: Error in scan(file = file, what = what, sep = sep, quote = quote, dec = dec, : line 1 did not have 75 elements
 ```
 
-*The only other file format available for 2000-2005 is SAS. The data is stored in the same .txt file as ASCII and SPSS, with a .sas setup file.* 
+The only other file format available for 2000-2005 is SAS. The data is stored in the same .txt file as ASCII and SPSS, with a .sas setup file. I will use the SPSS data because I saw an example use of asciiSetupReader to parse a .sps setup file. 
 
-### Read SPSS .sav data using haven package
+### Read SPSS .sav data using foreign package
 ```{r}
-library(haven)
-spss_2006_data <- read_sav("spss_2006_data.sav")
-head(spss_2006_data)
+library(foreign)
+spss_2006_data <- read.spss("spss_2006_data.sav", to.data.frame=TRUE, use.value.labels = FALSE, reencode = "windows-1252")
+#head(spss_2006_data)
 d06 <- spss_2006_data
 names(d06)[1:10] #variables have correct names 
 dim(d06) #72585 x 825 
 
-#gets same dimensions and same variable names as foreign package 
-
-#seems like both haven and foreign work well when the data is in a .sav file format 
+#gets same dimensions and same variable names as haven package. seems like both haven and foreign work well when the data is in a .sav file format 
 ```
 
 ### comparing .sav import in R to import in Python 
 ```{r}
-test <- data2006$SENTTOT
+test <- d06$SENTTOT
 length(test) #72585
 sum(is.na(test)) #9622 NAs 
 length(na.omit(test)) #62963 not NA 
@@ -55,7 +53,7 @@ summary(test)
 
 count_life <- 0
 for(i in na.omit(test)){
-  if(i == 470.00){
+  if(i == 470){
     count_life<- count_life + 1
   }
 }
@@ -64,21 +62,26 @@ count_life #358 life sentences, consistent with Python
 count_990 <- 0
 
 for(i in na.omit(test)){
-  if(i == 990.00){
+  if(i == 990){
     count_990 <- count_990 + 1
   }
 }
 
-count_990 #0 sentences of 990 months. This is consistent with my Python result but NOT consistent with Hagen's analysis. hmm... later on I got count_990 = 12
+count_990 #0 sentences of 990 months. This is consistent with my Python result and with the below table
+rev(table(test)) #the values in the table seem reasonable. there are no negative values. 
+table(test < 0)
 
-length(unique(test)) #1116 unique values. Python lists 1115. I believe this is because R considers 'NA' a value, while Python does not  
+length(unique(test)) #1116 unique values. Python lists 1115. This is because R considers 'NA' a value, while Python does not  
 length(unique(test[is.na(test) == FALSE]))
+
+mean(test, na.rm=TRUE) #59.11379, consistent with Python 
 
 #indices of columns to select in Python 
 which(names(data2000) %in% c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMHIST", "XCRHISSR", "NOCOUNTS", "CRIMPTS", "NEWCNVTN", "SENTDATE", "DISTRICT", "OFFTYPE2"))
 ```
+*Based on the above, I think the 2006 data was imported cleanly. For the response variable, the number of NAs, the number of unique values, the minimum and maximum, the number of life sentences, and the mean are consistent between import results in R and Python. Because it seems unlikely that different packages on different software would make the exact same mistakes, I assume that my method of importing .sav files in R is reliable.*
 
-### Read SPSS data using ASCII Setup Reader and foreign packages 
+## Read SPSS data using ASCII Setup Reader and foreign packages 
 ```{r}
 library(asciiSetupReader)
 #2000 DATA 
@@ -121,15 +124,30 @@ setup2005 <- asciiSetupReader::parse_setup('spss_2005_setup.sps')
 #setup2005$missing # no missing values 
 data2005 <- read_ascii_setup("spss_2005_data.txt.zip", "spss_2005_setup.sps", use_clean_names = FALSE)
 
-#2006 DATA - note .sav extension. When I read in, I get message: "re-encoding from CP1252," which I believe means that the numeric values of a lot of levels have changed, so probably safest to convert to characters and re-code according to the codebook 
+#2006 DATA - note switch to .sav extension. When I read in, I get message: "re-encoding from CP1252," which may indicate that the numeric values of factors will change
 library(foreign)
-data2006 <- read.spss("spss_2006_data.sav", to.data.frame=TRUE, use.value.labels = FALSE)
+#data2006_default_reencode <- read.spss("spss_2006_data.sav", to.data.frame=TRUE, use.value.labels = FALSE)
+
+#what about when we specify that assumed encoding is CP1252? still gives me a "reencoding from windows 1252," not sure if this indicates an eror or just visibility
+
+data2006 <- read.spss("spss_2006_data.sav", to.data.frame=TRUE, use.value.labels = FALSE, reencode = "windows-1252")
+
+#library(arsenal)
+#compare_cp1252 <- comparedf(data2006, data2006_default_reencode)
+#summary(compare_cp1252) #only one observation not the same, and not a variable that I care about
+
+#check if factors have expected values 
+sort(unique(data2006$EDUCATN)) #yes. values are 0-37, consistent with codebook p. 45
+sort(unique(data2006$MONRACE)) #yes. values: 1, 2, 3, 4, 5, 7
+sort(unique(data2006$XCRHISSR)) #yes. values: 1-6. 
+table(data2006$MONSEX) #yes. 0 and 1, with 1 being much more frequent. 
+#factors have the expected values, and at least for sex, the expected frequency. I'm going to trust that re-encoding from CP 1252 is not distorting the data. 
 
 #2007 DATA 
-data2007 <- read.spss("spss_2007_data.sav", to.data.frame=TRUE, use.value.labels = FALSE)
+data2007 <- read.spss("spss_2007_data.sav", to.data.frame=TRUE, use.value.labels = FALSE, reencode = "windows-1252")
 
 #2008 DATA 
-data2008 <- read.spss("spss_2008_data.sav", to.data.frame=TRUE, use.value.labels = FALSE)
+data2008 <- read.spss("spss_2008_data.sav", to.data.frame=TRUE, use.value.labels = FALSE, reencode = "windows-1252")
 ```
 
 ### Select variables for use in models 
@@ -144,9 +162,6 @@ vars04 <- c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMH
 
 ### Rename variables and force same data types across years 
 ```{r}
-#subset the 2000 data to only subjects who were sentenced on or after Jan 1, 2000
-data2000 <- data2000[substr(as.character(data2000$DATE_ON_WHICH_DEFENDANT_WAS_SENTENCED), 5, 8) == "2000", ]
-
 #rename columns to have the same names as Hagen assigned
 hagen_names <- c("SENTENCE", "AGE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "CATEGORY", "NOCOUNTS", "POINTS", "TRIAL", "YR", "DISTRICT", "PRIM_OFFENSE")
 
@@ -207,13 +222,8 @@ data2004$YR <- substr(as.character(data2004$YR), 8,11)
 #variables to convert to characters 
 char_vars <- c("SENTENCE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "POINTS", "TRIAL", "YR", "PRIM_OFFENSE")
 
-#trying to figure out how perform the same operation on the list of dfs
+#would like to figure out how perform the same operation on the list of dfs
 #dfs <- list(data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008) 
-# for(df in dfs){
-#   for(var in char_vars){
-#     df <- as.character(df[,var])
-#   }
-# }
 
 for(var in char_vars){
   data2000[,var] <- as.character(data2000[,var])
@@ -255,26 +265,24 @@ if(nrow(data2000) + nrow(data2001) + nrow(data2002) + nrow(data2003) + nrow(data
   print("dimension mismatch")
 } 
 
-nrow(combine[complete.cases(na_if(combine, "")),]) #if we replace all blanks with NAs, # of complete rows = 378414
-nrow(combine) #total nrow: 558979 
-sum(is.na(combine$SENTENCE) == FALSE) #476317 - different from Hagen 
-#look at complete cases minus YR and EDUCATN, which I will replace with indicators 
-complete <- combine[complete.cases(combine[,-c(4, 12)]), ]
-nrow(complete) #443340, substantially less than the number of observations Hagen uses (24) 
-min(combine$SENTENCE, na.rm = TRUE) #min is 0.03, consistent with Hagen Table 1
-max(as.numeric(combine$SENTENCE), na.rm = TRUE) #11520, consistent with Hagen Table 1
+nrow(combine[complete.cases(na_if(combine, "")),]) #if we replace all blanks with NAs, # of complete rows = 422338
+nrow(combine) #total number of observations = 618825 
 
-#write combined data to compressed file 
-# library(dplyr)
+# #check missingness of a couple columns compared to Hagen's Table 1
+sum(is.na(combine$AGE)==FALSE) #603635: same number of age observations as Hagen
+sum(is.na(combine$NOCOUNTS) == FALSE) #616935: consistent with Hagen 
+
+sum(is.na(combine$SENTENCE) == FALSE) #525574. Hagen: 525509
+# rev(table(combine$SENTENCE))
+summary(as.numeric(gsub("990 months or more", 990, gsub("life", 470, tolower(combine$SENTENCE)))), na.rm = TRUE) #no negative values. max = 11520, consistent with Hagen. but min = 0.0 while Hagen min = 0.3 
+```
+
+### Writing and reading .csv.gz files
+```{r}
+# write combined data to compressed file 
 # library(crunch)
 # write.csv.gz(combine, "/Users/abbysteckel/Desktop/combined.csv.gz")
 
-#smaller test file
-#write.csv.gz(combine[1:100, ], "/Users/abbysteckel/Desktop/test.csv.gz")
-```
-
-### Reading in .csv.gz files
-```{r}
 # library(R.utils)
 # test <- read.csv('/Users/abbysteckel/Desktop/test.csv.gz')
 # 
@@ -290,6 +298,7 @@ max(as.numeric(combine$SENTENCE), na.rm = TRUE) #11520, consistent with Hagen Ta
 ### Reformatting data  
 ```{r}
 #Create indicators for year of sentencing 
+combine$YR2000 <- ifelse(combine$YR == "2000", 1, 0) 
 combine$YR2001 <- ifelse(combine$YR == "2001", 1, 0)
 combine$YR2002 <- ifelse(combine$YR == "2002", 1, 0)
 combine$YR2003 <- ifelse(combine$YR == "2003", 1, 0)
@@ -319,7 +328,6 @@ combine$POSTHSDEGREE <- rep(200, length(combine$EDUCATN))
 combine$POSTHSDEGREE[tolower(combine$EDUCATN) %in% c("college graduate", "grad degree", "associate degree", "grad degree (mst, j.d., m.d., ph.d., etc", "graduate degree (mst, j.d., m.d., ph.d., etc)", "trade/vocational deg", "some graduate school", "trade or vocational degree", "associate degree (a.a.)", "16", "22", "23", "24", "35")] <- 1
 combine$POSTHSDEGREE[!is.na(combine$EDUCATN) & combine$POSTHSDEGREE != 1 ] <- 0
 combine$POSTHSDEGREE[combine$POSTHSDEGREE == 200] <- NA
-mean(combine$POSTHSDEGREE, na.rm = TRUE) #7.57. Hagen: 7.63
 
 #for SENTENCE data, I will set "990 months or more" to "990"   
 combine$SENTENCE <- gsub("^990.*","990", combine$SENTENCE) 
@@ -331,10 +339,8 @@ combine$SENTENCE[tolower(combine$SENTENCE) %in% c("life") & combine$HISPANIC %in
 
 combine$SENTENCE[tolower(combine$SENTENCE) %in% c("life")] <- 945.6 #non-Hispanic people or people with unknown ethnicity have an average life expectancy of 78.8 years/945.6 months 
 
-sort(unique(tolower(combine$SENTENCE)), decreasing = TRUE)
-#shouldn't use ifelse because there are lots of NAs 
-
-#create SWB indicator of whether the case district is in the Southwest Border regin
+#create SWB indicator of whether the case district is in the Southwest Border region
+#there are no NA values for dDISTRICT, so it's ok to use ifelse()
 combine$SWB <- ifelse(combine$DISTRICT %in% c(41, 42, 84, 70, 74), 1, 0)
 
 #create offense category indicators
@@ -350,13 +356,9 @@ combine$AGE <- as.numeric(combine$AGE)
 
 combine$MALE[combine$MALE == "0"] <- "Male" #"Male" was originally coded as 0
 combine$MALE[combine$MALE == "1"] <- "Female" 
-combine$MALE[combine$MALE == "Male"] <- 1
+combine$MALE[combine$MALE == "Male"] <- 1 #recode Male as 1 to match Hagen
 combine$MALE[combine$MALE == "Female"] <- 0
 combine$MALE <- as.numeric(combine$MALE)
-
-sum(combine$MALE == 1, na.rm=TRUE) #471926 men. Hagen has 522,994 
-sum(combine$MALE == 0, na.rm = TRUE) #73882 women. Hagen has 82437
-sum(combine$MALE == 1, na.rm=TRUE)/(sum(combine$MALE == 1, na.rm=TRUE) + sum(combine$MALE == 0, na.rm = TRUE)) #86% men, consistent with Hagen 
 
 combine$HISPANIC[combine$HISPANIC %in% c("Non-Hispanic", "1", "0")] <- 0
 combine$HISPANIC[combine$HISPANIC %in% c("Hispanic", "2")] <- 1
@@ -382,36 +384,46 @@ combine$POINTS <- as.numeric(combine$POINTS)
 combine$NOCOUNTS <- as.numeric(combine$NOCOUNTS)
 ```
 
-### Comparison to Hagen Table 1 
+### Tabulating data, Comparing to Hagen Table 1 
 ```{r}
-#Hagen num obs: 525509
-#average sentence: 58.192. Hagen: 56.782 
+
+#Hagen num obs: 525509. my num obs: 525574 - INCONSISTENT
+#average sentence: 58.1135. Hagen: 56.782 - INCONSISTENT
 mean(combine$SENTENCE, na.rm = TRUE) 
 table(combine$SENTENCE)
-#Hagen num obs: 603635
-#average age: 34.56. Hagen: 34.52
+
+#num obs: 603635, consistent with Hagen 
+#average age: 34.52, consistent with Hagen 
 mean(combine$AGE, na.rm = TRUE)
+table(combine$AGE) #min: 16. max: 103. consistent with Hagen.  
 
-#percent of population that's male: 86.46. Hagen: 86.38
-mean(combine$MALE, na.rm = TRUE) 
+mean(combine$MALE, na.rm = TRUE) #mean = 0.8638, consistent with Hagen.   
+table(combine$MALE) #consistent with Hagen 
 
-#percent high school or GED: 29.68. Hagen: 29.70
+#percent high school or GED: 29.70, consistent with Hagen
 mean(combine$HSGED, na.rm=TRUE)
+table(combine$HSGED) #consistent with Hagen 
 
-#percent some post high school: 15.06. Hagen: 15.17
+#percent some post high school: 15.03. Hagen: 15.17. INCONSISTENT 
 mean(combine$SOMEPOSTHS, na.rm=TRUE)
+table(combine$SOMEPOSTHS) #83587 post-HS. Hagen: 84,377. INCONSISTENT  
 
-mean(combine$POSTHSDEGREE, na.rm = TRUE) #7.57. Hagen: 7.63
+mean(combine$POSTHSDEGREE, na.rm = TRUE) #7.63, consistent with Hagen 
+table(combine$POSTHSDEGREE) #consistent with Hagen
 
 #Hagen num obs: 618825
-mean(combine$HISPANIC, na.rm = TRUE) #41.93. Hagen: 40.07
+mean(combine$HISPANIC, na.rm = TRUE) #44.46. Hagen: 40.07. INCONSISTENT
+table(combine$HISPANIC) #247965, consistent with Hagen. But I created more NAs instead of lumping everything into "Other"
 
 mean(combine$USCITIZEN, na.rm=TRUE) #63.63. Hagen: 60.79
 
-#Hagen num obs: 618825, length(na.omit(combine$CRIMINAL)) = 617678
-mean(combine$CRIMINAL, na.rm=TRUE) #74.53. Hagen: 70.23... uh oh this is a big gap 
+#Hagen num obs: 618825, 
+mean(combine$CRIMINAL, na.rm=TRUE) #72.26. Hagen: 70.23. INCONSISTENT 
+table(combine$CRIMINAL) #394,149, Hagen: 434,616. INCONSISTENT 
 
-mean(combine$NOCOUNTS, na.rm = TRUE) #1.46. Hagen: 1.46 
+mean(combine$NOCOUNTS, na.rm = TRUE) #1.46, consistent with Hagen 
+table(combine$NOCOUNTS) #all categories are numeric except "imm"
+#min = 0, max = 495, consistent with Hagen 
 ```
 
 ### Comparison to Hagen Table 4
