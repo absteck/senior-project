@@ -11,19 +11,9 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Would be good to put all data files in same folder and setwd() at beginning of this file 
 ### Set working directory
 ```{r}
-setwd("~/Users/abbysteckel/Desktop/S&DS_491/Sentencing_Data/")
-getwd()
-```
-*notes on file organization*
-
-### Attempt to read SPSS data as text without setup file 
-```{r}
-#there do not appear to be column names in the text file 
-#error: line 1 did not have 75 elements 
-text <- read.table("/Users/abbysteckel/Desktop/spss_2000/DS0001/spss_2000_data.txt", as.is=TRUE, header=F)
+setwd("/Users/abbysteckel/Desktop/S&DS_491/sentencing_data/")
 ```
 
 ### Attempt to read ASCII text data
@@ -33,7 +23,7 @@ text <- read.table("/Users/abbysteckel/Desktop/spss_2000/DS0001/spss_2000_data.t
 text2 <- read.table("/Users/abbysteckel/Desktop/ASCII_2000/DS0001/ASCII_2000_data.txt", as.is = TRUE, header = F)
 ```
 
-### The only other file format available for 2000-2005 is SAS. The data is stored in the same .txt file as ASCII and SPSS, with a .sas setup file. 
+*The only other file format available for 2000-2005 is SAS. The data is stored in the same .txt file as ASCII and SPSS, with a .sas setup file.* 
 
 ### Read SPSS .sav data using haven package
 ```{r}
@@ -44,15 +34,48 @@ d06 <- spss_2006_data
 names(d06)[1:10] #variables have correct names 
 dim(d06) #72585 x 825 
 
-#compare to foreign package:
-library(foreign)
-data2006 <- read.spss("spss_2006_data.sav", to.data.frame=TRUE, use.value.labels = FALSE)
-head(data2006)
-names(data2006)[1:10]
-dim(data2006)
-#get same dimensions and same variable names
+#gets same dimensions and same variable names as foreign package 
 
 #seems like both haven and foreign work well when the data is in a .sav file format 
+```
+
+### comparing .sav import in R to import in Python 
+```{r}
+test <- data2006$SENTTOT
+length(test) #72585
+sum(is.na(test)) #9622 NAs 
+length(na.omit(test)) #62963 not NA 
+str(test) #mostly numeric except "990 months or more" and "life"... I am assuming that "990 months or more" is a named numeric variable with label 990, and "life" has numeric name 470 
+# "attr(*, "value.labels") = Named num [1:2] 990 470" 
+
+#can I change val labels using the 'labelled' package? alas, haven't been successful thus far
+library(labelled)
+val_labels(test) #NULL 
+summary(test)
+
+count_life <- 0
+for(i in na.omit(test)){
+  if(i == 470.00){
+    count_life<- count_life + 1
+  }
+}
+count_life #358 life sentences, consistent with Python 
+
+count_990 <- 0
+
+for(i in na.omit(test)){
+  if(i == 990.00){
+    count_990 <- count_990 + 1
+  }
+}
+
+count_990 #0 sentences of 990 months. This is consistent with my Python result but NOT consistent with Hagen's analysis. hmm... later on I got count_990 = 12
+
+length(unique(test)) #1116 unique values. Python lists 1115. I believe this is because R considers 'NA' a value, while Python does not  
+length(unique(test[is.na(test) == FALSE]))
+
+#indices of columns to select in Python 
+which(names(data2000) %in% c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMHIST", "XCRHISSR", "NOCOUNTS", "CRIMPTS", "NEWCNVTN", "SENTDATE", "DISTRICT", "OFFTYPE2"))
 ```
 
 ### Read SPSS data using ASCII Setup Reader and foreign packages 
@@ -107,15 +130,11 @@ data2007 <- read.spss("spss_2007_data.sav", to.data.frame=TRUE, use.value.labels
 
 #2008 DATA 
 data2008 <- read.spss("spss_2008_data.sav", to.data.frame=TRUE, use.value.labels = FALSE)
-
-#check for missing values identified in the SPSS setup file 
-head(data2000)
-
 ```
 
 ### Select variables for use in models 
 ```{r}
-#These are the same variables that Hagen selected from the BJS dataset, except for OFFTYPE2, which is my replacement for TTIGRON, which I can't find
+#These are the same variables that Hagen selected from the BJS dataset, except for OFFTYPE2, which I'm using instead of TTIGRON 
 
 #from 2000-2003, there was a sentdate variable. beginning in 2004, it became sentyr and sentmon 
 vars00 <- c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMHIST", "XCRHISSR", "NOCOUNTS", "CRIMPTS", "NEWCNVTN", "SENTDATE", "DISTRICT", "OFFTYPE2")
@@ -138,14 +157,14 @@ renameHagen <- function(df, old_names){
   return(df)
 }
 
-data2008 <- renameHagen(data2008, vars06)
-data2007 <- renameHagen(data2007, vars06)
-data2006 <- renameHagen(data2006, vars06)
+data2008 <- renameHagen(data2008, vars04)
+data2007 <- renameHagen(data2007, vars04)
+data2006 <- renameHagen(data2006, vars04)
 data2005 <- renameHagen(data2005, vars04)
 data2004 <- renameHagen(data2004, vars04)
-data2003 <- renameHagen(data2003, vars01)
-data2002 <- renameHagen(data2002, vars01)
-data2001 <- renameHagen(data2001, vars01)
+data2003 <- renameHagen(data2003, vars00)
+data2002 <- renameHagen(data2002, vars00)
+data2001 <- renameHagen(data2001, vars00)
 data2000 <- renameHagen(data2000, vars00)
 
 #subset each dataset to just the columns of interest
@@ -159,7 +178,7 @@ data2006 <- data2006[,hagen_names]
 data2007 <- data2007[,hagen_names]
 data2008 <- data2008[,hagen_names]
 
-#clean 2000-2004 dates 
+#for 2000-2004 dates, create new YR variable that just contains the year of sentencing 
 data2000$YR <- substr(as.character(data2000$YR), 5,8)
 data2001$YR <- substr(as.character(data2001$YR), 5,8)
 data2002$YR <- substr(as.character(data2002$YR), 7,10)
@@ -183,12 +202,18 @@ data2004$YR <- substr(as.character(data2004$YR), 8,11)
 #prim_offense: char, factor 06-08
 
 #I made everything except district data into character vectors for ease of combining rows. 
-#I plan to convert to the appropriate data types after combining 
+#I will convert to the appropriate data types after combining 
 
 #variables to convert to characters 
 char_vars <- c("SENTENCE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "POINTS", "TRIAL", "YR", "PRIM_OFFENSE")
-dfs <- list(data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008) 
-#well, this is embarassing... couldn't figure out how perform same operation on the dfs list 
+
+#trying to figure out how perform the same operation on the list of dfs
+#dfs <- list(data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008) 
+# for(df in dfs){
+#   for(var in char_vars){
+#     df <- as.character(df[,var])
+#   }
+# }
 
 for(var in char_vars){
   data2000[,var] <- as.character(data2000[,var])
@@ -223,36 +248,43 @@ data2008$DISTRICT <- as.numeric(data2008$DISTRICT)
 
 ### Combine data for all years 
 ```{r}
+library(dplyr)
 combine <- bind_rows(data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008)
 
 if(nrow(data2000) + nrow(data2001) + nrow(data2002) + nrow(data2003) + nrow(data2004) + nrow(data2005) + nrow(data2006) + nrow(data2007) + nrow(data2008) != nrow(combine)){
   print("dimension mismatch")
-} # we get the expected number of rows: 652157
+} 
 
-#if we replace all blanks with NAs, # of complete rows = 449658
-nrow(combine[complete.cases(na_if(combine, "")),])
+nrow(combine[complete.cases(na_if(combine, "")),]) #if we replace all blanks with NAs, # of complete rows = 378414
+nrow(combine) #total nrow: 558979 
+sum(is.na(combine$SENTENCE) == FALSE) #476317 - different from Hagen 
+#look at complete cases minus YR and EDUCATN, which I will replace with indicators 
+complete <- combine[complete.cases(combine[,-c(4, 12)]), ]
+nrow(complete) #443340, substantially less than the number of observations Hagen uses (24) 
+min(combine$SENTENCE, na.rm = TRUE) #min is 0.03, consistent with Hagen Table 1
+max(as.numeric(combine$SENTENCE), na.rm = TRUE) #11520, consistent with Hagen Table 1
 
 #write combined data to compressed file 
-library(dplyr)
-library(crunch)
-write.csv.gz(combine, "/Users/abbysteckel/Desktop/combined.csv.gz")
+# library(dplyr)
+# library(crunch)
+# write.csv.gz(combine, "/Users/abbysteckel/Desktop/combined.csv.gz")
 
 #smaller test file
-write.csv.gz(combine[1:100, ], "/Users/abbysteckel/Desktop/test.csv.gz")
+#write.csv.gz(combine[1:100, ], "/Users/abbysteckel/Desktop/test.csv.gz")
 ```
 
 ### Reading in .csv.gz files
 ```{r}
-library(R.utils)
-test <- read.csv('/Users/abbysteckel/Desktop/test.csv.gz')
-
-combine <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
-
-head(combine)
-dim(combine) #652157 rows. 
-#problem: blank spaces won't be filtered out by na.omit or complete.cases 
-library(tidyverse)
-combine <- na_if(combine, "")
+# library(R.utils)
+# test <- read.csv('/Users/abbysteckel/Desktop/test.csv.gz')
+# 
+# combine <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
+# 
+# head(combine)
+# dim(combine) 
+# #problem: blank spaces won't be filtered out by na.omit or complete.cases 
+# library(tidyverse)
+# combine <- na_if(combine, "")
 ```
 
 ### Reformatting data  
@@ -267,83 +299,119 @@ combine$YR2006 <- ifelse(combine$YR == "2006", 1, 0)
 combine$YR2007 <- ifelse(combine$YR == "2007", 1, 0)
 combine$YR2008 <- ifelse(combine$YR == "2008", 1, 0)
 
+unique(combine$EDUCATN) #NAs should remain NAs! 
 #create indicators for highest education level achieved. note that there was slight variation in the level labels between years, hence the need for a bit of cleaning
-#if education = "high school graduate" or "GED (general education diploma)" 
-combine$HSGED <- ifelse(tolower(combine$EDUCATN) %in% c("g.e.d.", "high school graduate", "g.e.d. (general education diploma)"), 1, 0)
+#if education = "high school graduate" or "GED (general education diploma)", or corresponding numeric levels  
+combine$HSGED <- rep(3, length(combine$EDUCATN))
+combine$HSGED[tolower(combine$EDUCATN) %in% c("g.e.d.", "high school graduate", "g.e.d. (general education diploma)", "12", "21")] <- 1
+combine$HSGED[!is.na(combine$EDUCATN) & combine$HSGED!= 1] <- 0 
+combine$HSGED[combine$HSGED == 3] <- NA
 
 #if education = "one year of college / freshman", "two years of college / sophomore", "three years of college / junior", "some trade or vocational school", "some college" 
-combine$SOMEPOSTHS <- ifelse(tolower(combine$EDUCATN) %in% c("three years college", "some college", "three years of college /junior", "two years of college /sophomore", "one year of college /freshman", "some trade or vocational school", "two years of college/sophomore", "one year of college/freshman", "two years of college / sophomore", "one year of college / freshman", "three years of college / junior", "some trade/vocationl", "one year of college"), 1, 0)
+combine$SOMEPOSTHS <- rep(200, length(combine$EDUCATN))
+combine$SOMEPOSTHS[tolower(combine$EDUCATN) %in% c("three years college", "some college", "three years of college /junior", "two years of college /sophomore", "one year of college /freshman", "some trade or vocational school", "two years of college/sophomore", "one year of college/freshman", "two years of college / sophomore", "one year of college / freshman", "three years of college / junior", "some trade/vocationl", "one year of college", "13", "14", "15","33", "34")] <- 1
+combine$SOMEPOSTHS[!is.na(combine$EDUCATN) & combine$SOMEPOSTHS != 1 ] <- 0
+combine$SOMEPOSTHS[combine$SOMEPOSTHS ==200] <- NA
+
 
 #if education = "college graduate", "Trade or vocational degree", "Associate degree (A.A.)", "Graduate degree (MST, J.D., M.D., PH.D., etc)", "Some graduate school" 
-combine$POSTHSDEGREE <- ifelse(tolower(combine$EDUCATN) %in% c("college graduate", "grad degree", "associate degree", "grad degree (mst, j.d., m.d., ph.d., etc", "graduate degree (mst, j.d., m.d., ph.d., etc)", "trade/vocational deg", "some graduate school", "trade or vocational degree", "associate degree (a.a.)"), 1, 0)
+combine$POSTHSDEGREE <- rep(200, length(combine$EDUCATN))
+combine$POSTHSDEGREE[tolower(combine$EDUCATN) %in% c("college graduate", "grad degree", "associate degree", "grad degree (mst, j.d., m.d., ph.d., etc", "graduate degree (mst, j.d., m.d., ph.d., etc)", "trade/vocational deg", "some graduate school", "trade or vocational degree", "associate degree (a.a.)", "16", "22", "23", "24", "35")] <- 1
+combine$POSTHSDEGREE[!is.na(combine$EDUCATN) & combine$POSTHSDEGREE != 1 ] <- 0
+combine$POSTHSDEGREE[combine$POSTHSDEGREE == 200] <- NA
+mean(combine$POSTHSDEGREE, na.rm = TRUE) #7.57. Hagen: 7.63
 
-#look at complete cases minus YR and EDUCATN, which became more precise indicators 
-complete <- combine[complete.cases(combine[,-c(4, 12)]), ]
-nrow(complete) #463451. the number of sentence observations in Hagen's paper is 525509 (p. 24)  
+#for SENTENCE data, I will set "990 months or more" to "990"   
+combine$SENTENCE <- gsub("^990.*","990", combine$SENTENCE) 
+table(combine$SENTENCE == "990") #12 people sentenced to 990 months or more 
+table(tolower(combine$SENTENCE) == "life") #1206 sentenced to life 
 
-#for SENTENCE data, I will set "990 months or more" to 990/12 = 82.5  
-complete$SENTENCE[tolower(complete$SENTENCE) == "990 months or more"] <- "82.5"
-complete$SENTENCE[tolower(complete$SENTENCE) == "life"] <- ifelse(complete$HISPANIC[tolower(complete$SENTENCE) == "life"] == "Hispanic", "81.8", "78.8")
+#average life expectancy for Hispanic Americans is 81.8 years or 981.6 months 
+combine$SENTENCE[tolower(combine$SENTENCE) %in% c("life") & combine$HISPANIC %in% c("Hispanic", "2")] <- 981.6
+
+combine$SENTENCE[tolower(combine$SENTENCE) %in% c("life")] <- 945.6 #non-Hispanic people or people with unknown ethnicity have an average life expectancy of 78.8 years/945.6 months 
+
+sort(unique(tolower(combine$SENTENCE)), decreasing = TRUE)
+#shouldn't use ifelse because there are lots of NAs 
 
 #create SWB indicator of whether the case district is in the Southwest Border regin
-complete$SWB <- ifelse(complete$DISTRICT %in% c(41, 42, 84, 70, 74), 1, 0)
+combine$SWB <- ifelse(combine$DISTRICT %in% c(41, 42, 84, 70, 74), 1, 0)
 
 #create offense category indicators
-complete$CATEGORY2 <- ifelse(complete$CATEGORY == 2, 1, 0)
-complete$CATEGORY3 <- ifelse(complete$CATEGORY == 3, 1, 0)
-complete$CATEGORY4 <- ifelse(complete$CATEGORY == 4, 1, 0)
-complete$CATEGORY5 <- ifelse(complete$CATEGORY == 5, 1, 0)
-complete$CATEGORY6 <- ifelse(complete$CATEGORY == 6, 1, 0)
+combine$CATEGORY2 <- ifelse(combine$CATEGORY == 2, 1, 0)
+combine$CATEGORY3 <- ifelse(combine$CATEGORY == 3, 1, 0)
+combine$CATEGORY4 <- ifelse(combine$CATEGORY == 4, 1, 0)
+combine$CATEGORY5 <- ifelse(combine$CATEGORY == 5, 1, 0)
+combine$CATEGORY6 <- ifelse(combine$CATEGORY == 6, 1, 0)
 
-#convert to correct data types 
-complete$SENTENCE <- as.numeric(complete$SENTENCE)
-complete$AGE <- as.numeric(complete$AGE)
-complete$MALE <- ifelse(complete$MALE == "Male", 1, 0)
-complete$HISPANIC <- ifelse(complete$HISPANIC == "Hispanic", 1, 0)
-complete$USCITIZEN <- ifelse(tolower(complete$USCITIZEN) %in% c("united states citizen", "u.s."), 1, 0)
-complete$CRIMINAL <- ifelse(tolower(complete$CRIMINAL) %in% c("no criminal history", "0"), 0, 1)
-complete$TRIAL <- ifelse(complete$TRIAL == "Trial", 1, 0)
-complete$POINTS[tolower(complete$POINTS) == "no history pts appld"] <- 0
-complete$POINTS[tolower(complete$POINTS) == "no history points applied"] <- 0
-complete$POINTS <- as.numeric(complete$POINTS)
-complete$NOCOUNTS <- as.numeric(complete$NOCOUNTS)
+#convert to correct data types - careful with NA handling! 
+combine$SENTENCE <- as.numeric(combine$SENTENCE) #NAs passed through as.numeric() remain NAs
+combine$AGE <- as.numeric(combine$AGE) 
+
+combine$MALE[combine$MALE == "0"] <- "Male" #"Male" was originally coded as 0
+combine$MALE[combine$MALE == "1"] <- "Female" 
+combine$MALE[combine$MALE == "Male"] <- 1
+combine$MALE[combine$MALE == "Female"] <- 0
+combine$MALE <- as.numeric(combine$MALE)
+
+sum(combine$MALE == 1, na.rm=TRUE) #471926 men. Hagen has 522,994 
+sum(combine$MALE == 0, na.rm = TRUE) #73882 women. Hagen has 82437
+sum(combine$MALE == 1, na.rm=TRUE)/(sum(combine$MALE == 1, na.rm=TRUE) + sum(combine$MALE == 0, na.rm = TRUE)) #86% men, consistent with Hagen 
+
+combine$HISPANIC[combine$HISPANIC %in% c("Non-Hispanic", "1", "0")] <- 0
+combine$HISPANIC[combine$HISPANIC %in% c("Hispanic", "2")] <- 1
+combine$HISPANIC[combine$HISPANIC %in% c("Information Not Available")] <- NA 
+combine$HISPANIC <- as.numeric(combine$HISPANIC)
+
+combine$USCITIZEN[tolower(combine$USCITIZEN) %in% c("united states citizen", "u.s.", "1")] <- 1
+combine$USCITIZEN[combine$USCITIZEN %in% c("Resident/Legal Alien", "Illegal Alien", "Not a US Citizen/Alien Status Unknown", "2", "3", "4")] <- 0
+combine$USCITIZEN[combine$USCITIZEN == "5"] <- NA
+combine$USCITIZEN <- as.numeric(combine$USCITIZEN)
+
+combine$CRIMINAL[tolower(combine$CRIMINAL) %in% c("no criminal history", "0")] <- 0
+combine$CRIMINAL[tolower(combine$CRIMINAL) %in% c("yes, there is criminal history", "1")] <- 1
+combine$CRIMINAL <- as.numeric(combine$CRIMINAL)
+
+combine$TRIAL[combine$TRIAL %in% c("Trial")] <- 1
+combine$TRIAL[combine$TRIAL %in% c("Plea")] <- 0
+combine$TRIAL <- as.numeric(combine$TRIAL)
+
+combine$POINTS[tolower(combine$POINTS) == "no history pts appld"] <- 0
+combine$POINTS[tolower(combine$POINTS) == "no history points applied"] <- 0
+combine$POINTS <- as.numeric(combine$POINTS)
+combine$NOCOUNTS <- as.numeric(combine$NOCOUNTS)
 ```
 
 ### Comparison to Hagen Table 1 
 ```{r}
-#number of complete observations: 463451
-nrow(complete)
-
 #Hagen num obs: 525509
-#average sentence: 56.41. Hagen: 56.782 
-mean(complete$SENTENCE) 
-
+#average sentence: 58.192. Hagen: 56.782 
+mean(combine$SENTENCE, na.rm = TRUE) 
+table(combine$SENTENCE)
 #Hagen num obs: 603635
-#average age: 34.12. Hagen: 34.52
-mean(complete$AGE)
+#average age: 34.56. Hagen: 34.52
+mean(combine$AGE, na.rm = TRUE)
 
-#percent of population that's male: 89.11. Hagen: 86.38
-mean(complete$MALE) 
+#percent of population that's male: 86.46. Hagen: 86.38
+mean(combine$MALE, na.rm = TRUE) 
 
-#percent high school or GED: 28.29. Hagen: 29.70
-mean(complete$HSGED)
+#percent high school or GED: 29.68. Hagen: 29.70
+mean(combine$HSGED, na.rm=TRUE)
 
-#percent some post high school: 13.21. Hagen: 15.17
-mean(complete$SOMEPOSTHS)
+#percent some post high school: 15.06. Hagen: 15.17
+mean(combine$SOMEPOSTHS, na.rm=TRUE)
 
-mean(complete$POSTHSDEGREE) #6.19. Hagen: 7.63
+mean(combine$POSTHSDEGREE, na.rm = TRUE) #7.57. Hagen: 7.63
 
 #Hagen num obs: 618825
-mean(complete$HISPANIC) #43.48. Hagen: 40.07
+mean(combine$HISPANIC, na.rm = TRUE) #41.93. Hagen: 40.07
 
-mean(complete$USCITIZEN) #62.43. Hagen: 60.79
+mean(combine$USCITIZEN, na.rm=TRUE) #63.63. Hagen: 60.79
 
 #Hagen num obs: 618825, length(na.omit(combine$CRIMINAL)) = 617678
-mean(complete$CRIMINAL) #77.15. Hagen: 70.23... uh oh this is a big gap 
-#crim <- ifelse(tolower(na.omit(combine$CRIMINAL)) %in% c("no criminal history", "0"), 0, 1)
-#mean(crim): 73.9
+mean(combine$CRIMINAL, na.rm=TRUE) #74.53. Hagen: 70.23... uh oh this is a big gap 
 
-mean(complete$NOCOUNTS) #1.52. Hagen: 1.46 
+mean(combine$NOCOUNTS, na.rm = TRUE) #1.46. Hagen: 1.46 
 ```
 
 ### Comparison to Hagen Table 4
