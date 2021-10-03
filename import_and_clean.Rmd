@@ -150,6 +150,14 @@ data2007 <- read.spss("spss_2007_data.sav", to.data.frame=TRUE, use.value.labels
 data2008 <- read.spss("spss_2008_data.sav", to.data.frame=TRUE, use.value.labels = FALSE, reencode = "windows-1252")
 ```
 
+
+### TEMPORARY: checking out offense type variables 
+```{r}
+#Hagen says that major offense categories are coded (not exhaustively): "101 = Violent; 102 = Property; 103 = Drug; 104 = Public Order; 105 = Weapons; and 106 = Immigration"
+test <- data2001
+summary(data2001$ADJOFLHI) #
+```
+
 ### Select variables for use in models 
 ```{r}
 #These are the same variables that Hagen selected from the BJS dataset, except for OFFTYPE2, which I'm using instead of TTIGRON 
@@ -193,17 +201,32 @@ data2006 <- data2006[,hagen_names]
 data2007 <- data2007[,hagen_names]
 data2008 <- data2008[,hagen_names]
 
-#for 2000-2004 dates, create new YR variable that just contains the year of sentencing 
-data2000$YR <- substr(as.character(data2000$YR), 5,8)
-data2001$YR <- substr(as.character(data2001$YR), 5,8)
-data2002$YR <- substr(as.character(data2002$YR), 7,10)
-data2003$YR <- substr(as.character(data2003$YR), 8,11)
-data2004$YR <- substr(as.character(data2004$YR), 8,11)
-
+# #function to get year from format d(d)m(m)yyyy
+# getyr <- function(date){
+#   date <- as.character(date)
+#   len <- nchar(date)
+#   yr <- substr(date, len-3, len)
+#   return(yr)
+# }
+# #for 2000-2004 dates, create new YR variable that just contains the year of sentencing
+# data2000$YR <- getyr(data2000$YR)
+# data2001$YR <- getyr(data2001$YR)
+# data2002$YR <- getyr(data2002$YR)
+# data2003$YR <- getyr(data2003$YR)
+# data2004$YR <- getyr(data2004$YR)
+data2000$YR <- "99_00"
+data2001$YR <- "00_01"
+data2002$YR <- "01_02"
+data2003$YR <- "02_03"
+data2004$YR <- "03_04"
+data2005$YR <- "04_05"
+data2006$YR <- "05_06"
+data2007$YR <- "06_07" 
+data2008$YR <- "07_08"
 #data types: 
-#sentence in 2006, 2007, 2008 is a factor -- convert to char
+#sentence in 2006, 2007, 2008 is a factor 
 #age: num 
-#male: factor in 06-08. convert to char 
+#male: factor in 06-08 
 #education: char in 2000-2005, factor in 2006-2008 
 #hispanic: "
 #uscitizen "
@@ -214,13 +237,13 @@ data2004$YR <- substr(as.character(data2004$YR), 8,11)
 #trial: char 2000-05, factor 
 #yr: char 2000-04, then num 
 #district: num 2000-06, factor 07-08 
-#prim_offense: char, factor 06-08
+#prim_offense: char 2000-05, factor 06-08
 
-#I made everything except district data into character vectors for ease of combining rows. 
-#I will convert to the appropriate data types after combining 
+#I converted all variables except age, number of counts, category, and district data to characters for ease of combining dataframes from different years, which may have used different data types . 
+#I will convert each variable to the appropriate data type after combining 
 
 #variables to convert to characters 
-char_vars <- c("SENTENCE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "POINTS", "TRIAL", "YR", "PRIM_OFFENSE")
+char_vars <- c("SENTENCE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "POINTS", "TRIAL", "PRIM_OFFENSE")
 
 #would like to figure out how perform the same operation on the list of dfs
 #dfs <- list(data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008) 
@@ -272,7 +295,7 @@ nrow(combine) #total number of observations = 618825
 sum(is.na(combine$AGE)==FALSE) #603635: same number of age observations as Hagen
 sum(is.na(combine$NOCOUNTS) == FALSE) #616935: consistent with Hagen 
 
-sum(is.na(combine$SENTENCE) == FALSE) #525574. Hagen: 525509
+sum(is.na(combine$SENTENCE) == FALSE) #number of sentence observations = 525574. Hagen: 525509
 # rev(table(combine$SENTENCE))
 summary(as.numeric(gsub("990 months or more", 990, gsub("life", 470, tolower(combine$SENTENCE)))), na.rm = TRUE) #no negative values. max = 11520, consistent with Hagen. but min = 0.0 while Hagen min = 0.3 
 ```
@@ -298,30 +321,29 @@ summary(as.numeric(gsub("990 months or more", 990, gsub("life", 470, tolower(com
 ### Reformatting data  
 ```{r}
 #Create indicators for year of sentencing 
-combine$YR2000 <- ifelse(combine$YR == "2000", 1, 0) 
-combine$YR2001 <- ifelse(combine$YR == "2001", 1, 0)
-combine$YR2002 <- ifelse(combine$YR == "2002", 1, 0)
-combine$YR2003 <- ifelse(combine$YR == "2003", 1, 0)
-combine$YR2004 <- ifelse(combine$YR == "2004", 1, 0)
-combine$YR2005 <- ifelse(combine$YR == "2005", 1, 0)
-combine$YR2006 <- ifelse(combine$YR == "2006", 1, 0)
-combine$YR2007 <- ifelse(combine$YR == "2007", 1, 0)
-combine$YR2008 <- ifelse(combine$YR == "2008", 1, 0)
+combine$YR2000 <- ifelse(combine$YR == "99_00", 1, 0) 
+combine$YR2001 <- ifelse(combine$YR == "00_01", 1, 0)
+combine$YR2002 <- ifelse(combine$YR == "01_02", 1, 0)
+combine$YR2003 <- ifelse(combine$YR == "02_03", 1, 0)
+combine$YR2004 <- ifelse(combine$YR == "03_04", 1, 0)
+combine$YR2005 <- ifelse(combine$YR == "04_05", 1, 0)
+combine$YR2006 <- ifelse(combine$YR == "05_06", 1, 0)
+combine$YR2007 <- ifelse(combine$YR == "06_07", 1, 0)
+combine$YR2008 <- ifelse(combine$YR == "07_08", 1, 0)
 
-unique(combine$EDUCATN) #NAs should remain NAs! 
+#unique(tolower(combine$EDUCATN)) #NAs should remain NAs! 
 #create indicators for highest education level achieved. note that there was slight variation in the level labels between years, hence the need for a bit of cleaning
 #if education = "high school graduate" or "GED (general education diploma)", or corresponding numeric levels  
-combine$HSGED <- rep(3, length(combine$EDUCATN))
+combine$HSGED <- rep(200, length(combine$EDUCATN)) #create an array of 200s (200 is an arbitrary placeholder instead of NA)
 combine$HSGED[tolower(combine$EDUCATN) %in% c("g.e.d.", "high school graduate", "g.e.d. (general education diploma)", "12", "21")] <- 1
 combine$HSGED[!is.na(combine$EDUCATN) & combine$HSGED!= 1] <- 0 
-combine$HSGED[combine$HSGED == 3] <- NA
+combine$HSGED[combine$HSGED == 200] <- NA
 
 #if education = "one year of college / freshman", "two years of college / sophomore", "three years of college / junior", "some trade or vocational school", "some college" 
-combine$SOMEPOSTHS <- rep(200, length(combine$EDUCATN))
-combine$SOMEPOSTHS[tolower(combine$EDUCATN) %in% c("three years college", "some college", "three years of college /junior", "two years of college /sophomore", "one year of college /freshman", "some trade or vocational school", "two years of college/sophomore", "one year of college/freshman", "two years of college / sophomore", "one year of college / freshman", "three years of college / junior", "some trade/vocationl", "one year of college", "13", "14", "15","33", "34")] <- 1
+combine$SOMEPOSTHS <- rep(200, length(combine$EDUCATN)) 
+combine$SOMEPOSTHS[tolower(combine$EDUCATN) %in% c("three years college", "some college", "three years of college /junior", "two years of college /sophomore", "one year of college /freshman", "some trade or vocational school", "two years of college/sophomore", "one year of college/freshman", "two years of college / sophomore", "one year of college / freshman", "three years of college / junior", "some trade/vocationl", "one year of college", "two years of college", "13", "14", "15","33", "34")] <- 1
 combine$SOMEPOSTHS[!is.na(combine$EDUCATN) & combine$SOMEPOSTHS != 1 ] <- 0
 combine$SOMEPOSTHS[combine$SOMEPOSTHS ==200] <- NA
-
 
 #if education = "college graduate", "Trade or vocational degree", "Associate degree (A.A.)", "Graduate degree (MST, J.D., M.D., PH.D., etc)", "Some graduate school" 
 combine$POSTHSDEGREE <- rep(200, length(combine$EDUCATN))
@@ -331,7 +353,7 @@ combine$POSTHSDEGREE[combine$POSTHSDEGREE == 200] <- NA
 
 #for SENTENCE data, I will set "990 months or more" to "990"   
 combine$SENTENCE <- gsub("^990.*","990", combine$SENTENCE) 
-table(combine$SENTENCE == "990") #12 people sentenced to 990 months or more 
+table(combine$SENTENCE == "990") #29 people sentenced to 990 months or more 
 table(tolower(combine$SENTENCE) == "life") #1206 sentenced to life 
 
 #average life expectancy for Hispanic Americans is 81.8 years or 981.6 months 
@@ -360,18 +382,18 @@ combine$MALE[combine$MALE == "Male"] <- 1 #recode Male as 1 to match Hagen
 combine$MALE[combine$MALE == "Female"] <- 0
 combine$MALE <- as.numeric(combine$MALE)
 
-combine$HISPANIC[combine$HISPANIC %in% c("Non-Hispanic", "1", "0")] <- 0
+combine$HISPANIC[tolower(combine$HISPANIC) %in% c("non-hispanic", "1", "0")] <- 0
 combine$HISPANIC[combine$HISPANIC %in% c("Hispanic", "2")] <- 1
 combine$HISPANIC[combine$HISPANIC %in% c("Information Not Available")] <- NA 
-combine$HISPANIC <- as.numeric(combine$HISPANIC)
+combine$HISPANIC <- as.numeric(combine$HISPANIC) 
 
-combine$USCITIZEN[tolower(combine$USCITIZEN) %in% c("united states citizen", "u.s.", "1")] <- 1
-combine$USCITIZEN[combine$USCITIZEN %in% c("Resident/Legal Alien", "Illegal Alien", "Not a US Citizen/Alien Status Unknown", "2", "3", "4")] <- 0
+combine$USCITIZEN[tolower(combine$USCITIZEN) %in% c("united states citizen", "united states citzen", "1")] <- 1
+combine$USCITIZEN[tolower(combine$USCITIZEN) %in% c("resident/legal alien", "illegal alien", "not a us citizen/alien status unknown", "not us citizen","2", "3", "4")] <- 0
 combine$USCITIZEN[combine$USCITIZEN == "5"] <- NA
 combine$USCITIZEN <- as.numeric(combine$USCITIZEN)
 
 combine$CRIMINAL[tolower(combine$CRIMINAL) %in% c("no criminal history", "0")] <- 0
-combine$CRIMINAL[tolower(combine$CRIMINAL) %in% c("yes, there is criminal history", "1")] <- 1
+combine$CRIMINAL[tolower(combine$CRIMINAL) %in% c("yes, there is criminal history", "yes, criminal histy", "1")] <- 1
 combine$CRIMINAL <- as.numeric(combine$CRIMINAL)
 
 combine$TRIAL[combine$TRIAL %in% c("Trial")] <- 1
@@ -386,7 +408,6 @@ combine$NOCOUNTS <- as.numeric(combine$NOCOUNTS)
 
 ### Tabulating data, Comparing to Hagen Table 1 
 ```{r}
-
 #Hagen num obs: 525509. my num obs: 525574 - INCONSISTENT
 #average sentence: 58.1135. Hagen: 56.782 - INCONSISTENT
 mean(combine$SENTENCE, na.rm = TRUE) 
@@ -404,26 +425,49 @@ table(combine$MALE) #consistent with Hagen
 mean(combine$HSGED, na.rm=TRUE)
 table(combine$HSGED) #consistent with Hagen 
 
-#percent some post high school: 15.03. Hagen: 15.17. INCONSISTENT 
+#percent some post high school: 15.17, consistent with Hagen 
 mean(combine$SOMEPOSTHS, na.rm=TRUE)
-table(combine$SOMEPOSTHS) #83587 post-HS. Hagen: 84,377. INCONSISTENT  
+table(combine$SOMEPOSTHS) #84,377 post-HS, consistent with Hagen. 
 
 mean(combine$POSTHSDEGREE, na.rm = TRUE) #7.63, consistent with Hagen 
 table(combine$POSTHSDEGREE) #consistent with Hagen
 
 #Hagen num obs: 618825
-mean(combine$HISPANIC, na.rm = TRUE) #44.46. Hagen: 40.07. INCONSISTENT
-table(combine$HISPANIC) #247965, consistent with Hagen. But I created more NAs instead of lumping everything into "Other"
+mean(combine$HISPANIC, na.rm = TRUE) #41.83. Hagen: 40.07. inconsistent because Hagen treats NAs as "Other"/0.
+table(combine$HISPANIC) #247965, consistent with Hagen.
 
-mean(combine$USCITIZEN, na.rm=TRUE) #63.63. Hagen: 60.79
+mean(combine$USCITIZEN, na.rm=TRUE) #63.63. Hagen: 60.79. inconsistent because Hagen treats NAs as 0s
+table(combine$USCITIZEN) #376,207, consistent with Hagen. 
+sum(combine$USCITIZEN == 0 | is.na(combine$USCITIZEN)) #242,618
 
-#Hagen num obs: 618825, 
-mean(combine$CRIMINAL, na.rm=TRUE) #72.26. Hagen: 70.23. INCONSISTENT 
-table(combine$CRIMINAL) #394,149, Hagen: 434,616. INCONSISTENT 
+#Hagen num obs: 618825
+mean(combine$CRIMINAL, na.rm=TRUE) #74.18. Hagen: 70.23. inconsistent because Hagen converts NAs to 0s. 
+table(combine$CRIMINAL) #434,616 with criminal history, consistent with Hagen.  
+sum(combine$CRIMINAL, na.rm = TRUE)/length(combine$CATEGORY) #when I include NAs, the percent w/ crim hist = 70.23 
+
+table(combine$CATEGORY) #consistent with Hagen 
 
 mean(combine$NOCOUNTS, na.rm = TRUE) #1.46, consistent with Hagen 
 table(combine$NOCOUNTS) #all categories are numeric except "imm"
 #min = 0, max = 495, consistent with Hagen 
+
+mean(combine$POINTS > 0, na.rm = TRUE) #60.14. Hagen: 59.91. INCONSISTENT
+table(combine$POINTS > 0) #341028. Hagen: criminal pts present: 347142. not present: 232330. INCONSISTENT
+sum(combine$POINTS==0 | is.na(combine$POINTS)) #number of 0s or NAs = 277797
+
+#Hagen total obs = 579472. my total obs = 567053
+sum(tolower(combine$POINTS) %in% c("no history pts appld","no history points applied")) #146832
+sum(is.na(combine$POINTS))
+
+
+mean(combine$TRIAL, na.rm=TRUE) #4.10%, consistent with Hagen
+table(combine$TRIAL) 
+
+table(combine$YR) #consistent with Hagen. 
+
+table(combine$SWB) #184881, consistent with Hagen.
+
+table(combine$PRIM_OFFENSE) #INCONSISTENT
 ```
 
 ### Comparison to Hagen Table 4
