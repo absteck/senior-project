@@ -1,7 +1,7 @@
 ---
 title: "Import and Clean"
 author: "Abby Steckel"
-date: "10/2/2021"
+date: "10/4/2021"
 output:
   html_document: default
   word_document: default
@@ -26,7 +26,7 @@ setwd("/Users/abbysteckel/Desktop/S&DS_491/sentencing_data/")
 The only other file format available for 2000-2005 is SAS. The data is stored in the same .txt file as ASCII and SPSS, with a .sas setup file. I will use the SPSS data because I saw an example use of asciiSetupReader to parse a .sps setup file. 
 
 ### Read SPSS .sav data using foreign package
-```{r}
+```{r, eval=FALSE}
 library(foreign)
 spss_2006_data <- read.spss("spss_2006_data.sav", to.data.frame=TRUE, use.value.labels = FALSE, reencode = "windows-1252")
 #head(spss_2006_data)
@@ -38,7 +38,7 @@ dim(d06) #72585 x 825
 ```
 
 ### comparing .sav import in R to import in Python 
-```{r}
+```{r, eval=FALSE}
 test <- d06$SENTTOT
 length(test) #72585
 sum(is.na(test)) #9622 NAs 
@@ -150,28 +150,22 @@ data2007 <- read.spss("spss_2007_data.sav", to.data.frame=TRUE, use.value.labels
 data2008 <- read.spss("spss_2008_data.sav", to.data.frame=TRUE, use.value.labels = FALSE, reencode = "windows-1252")
 ```
 
-
-### TEMPORARY: checking out offense type variables 
-```{r}
-#Hagen says that major offense categories are coded (not exhaustively): "101 = Violent; 102 = Property; 103 = Drug; 104 = Public Order; 105 = Weapons; and 106 = Immigration"
-test <- data2001
-summary(data2001$ADJOFLHI) #
-```
-
 ### Select variables for use in models 
 ```{r}
 #These are the same variables that Hagen selected from the BJS dataset, except for OFFTYPE2, which I'm using instead of TTIGRON 
 
+#REMOVE CRPTS AFTER COMPARING TO HAGEN
 #from 2000-2003, there was a sentdate variable. beginning in 2004, it became sentyr and sentmon 
-vars00 <- c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMHIST", "XCRHISSR", "NOCOUNTS", "CRIMPTS", "NEWCNVTN", "SENTDATE", "DISTRICT", "OFFTYPE2")
+vars00 <- c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMHIST", "XCRHISSR", "NOCOUNTS", "CRIMPTS", "NEWCNVTN", "SENTDATE", "DISTRICT", "OFFTYPE2", "CRPTS", "MONRACE")
 
-vars04 <- c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMHIST", "XCRHISSR", "NOCOUNTS", "CRIMPTS", "NEWCNVTN", "SENTYR", "DISTRICT", "OFFTYPE2")
+vars04 <- c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMHIST", "XCRHISSR", "NOCOUNTS", "CRIMPTS", "NEWCNVTN", "SENTYR", "DISTRICT", "OFFTYPE2", "CRPTS", "MONRACE")
 ```
 
 ### Rename variables and force same data types across years 
 ```{r}
+#REMOVE CRPTS AFTER TESTING
 #rename columns to have the same names as Hagen assigned
-hagen_names <- c("SENTENCE", "AGE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "CATEGORY", "NOCOUNTS", "POINTS", "TRIAL", "YR", "DISTRICT", "PRIM_OFFENSE")
+hagen_names <- c("SENTENCE", "AGE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "CATEGORY", "NOCOUNTS", "POINTS", "TRIAL", "YR", "DISTRICT", "PRIM_OFFENSE", "CRPTS", "RACE")
 
 renameHagen <- function(df, old_names){
   for(i in 1:length(old_names)){
@@ -242,8 +236,9 @@ data2008$YR <- "07_08"
 #I converted all variables except age, number of counts, category, and district data to characters for ease of combining dataframes from different years, which may have used different data types . 
 #I will convert each variable to the appropriate data type after combining 
 
+#REMOVE CRPTS AFTER TESTING
 #variables to convert to characters 
-char_vars <- c("SENTENCE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "POINTS", "TRIAL", "PRIM_OFFENSE")
+char_vars <- c("SENTENCE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "POINTS", "TRIAL", "PRIM_OFFENSE", "CRPTS", "RACE")
 
 #would like to figure out how perform the same operation on the list of dfs
 #dfs <- list(data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008) 
@@ -404,88 +399,180 @@ combine$POINTS[tolower(combine$POINTS) == "no history pts appld"] <- 0
 combine$POINTS[tolower(combine$POINTS) == "no history points applied"] <- 0
 combine$POINTS <- as.numeric(combine$POINTS)
 combine$NOCOUNTS <- as.numeric(combine$NOCOUNTS)
+combine$CRPTS[tolower(combine$CRPTS) %in% c("no history pts award", "no criminal history points applied", "0")] <- 0
+combine$CRPTS[tolower(combine$CRPTS) %in% c("history pts awarded", "yes, criminal history points", "1")] <- 1
+combine$CRPTS <- as.numeric(combine$CRPTS)
+
+combine$RACE[combine$RACE %in% c("White/Caucasian", "1")] <- "white"
+combine$RACE[combine$RACE %in% c("Black", "2")] <- "black"
+combine$RACE[combine$RACE %in% c("Am Indn/Alask Native", "American Indian or Alaskan Native", "3")] <- "aian"
+combine$RACE[combine$RACE %in% c("Asian or Pacific Islander", "Asian/Pacifc Islandr", "4")] <- "apic"
+combine$RACE[combine$RACE %in% c("Multi-racial", "5")] <- "multi"
+combine$RACE[combine$RACE %in% c("Other", "7")] <- "other"
+#from 2007 codebook, 8 = "Info on race not available". I'll recode as NA 
+combine$RACE[combine$RACE =="8"] <- NA
+```
+
+### Recoding primary offense variable 
+```{r}
+#sort(unique(tolower(combine$PRIM_OFFENSE)))
+combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("1", "2", "3", "4", "5", "6", "assault", "bank robbery", "bank robbery (includes offtype 7, other", "kidnaping /hostage", "kidnaping/hostage", "manslaughter", "murder", "sexual abuse")] <- "violent"
+sum(combine$PRIM_OFFENSE == "violent", na.rm = TRUE) #22013. Hagen: 21593
+combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("firearms: use (includes offtype 14, fire", "firearms:use", "13", "14")] <- "weapons"
+sum(combine$PRIM_OFFENSE == "weapons", na.rm=TRUE) #61762. Hagen: 62147
+combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("immigration", "27")] <- "immigration"
+sum(combine$PRIM_OFFENSE == "immigration", na.rm = TRUE) #138993. Hagen = 129976 
+
+combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("drugs: communication facilities", "drugs: simple possession", "drugs: trafficking", "drugs:comm facils","drugs:smpl posses", "drugs:trafficking", "10", "11", "12")] <- "drugs"
+sum(combine$PRIM_OFFENSE == "drugs", na.rm = TRUE) #229984. Hagen: 232010
+
+combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("gambling / lottery","gambling/lottery","pornography / prostitution","pornography/prostitn", "25", "28")] <- "public order"
+sum(combine$PRIM_OFFENSE == "public order", na.rm = TRUE) #10003. Hagen: 53895. I must be missing several crimes in this category. 
+
+combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("arson", "9", "brglry/break & enter", "burglary/breaking and entering", "15", "auto theft", "16", "larceny", "17")] <- "property"
+sum(combine$PRIM_OFFENSE == "property", na.rm = TRUE) #20562. Hagen: 117,274. I'm clearly leaving out a lot here. 
 ```
 
 ### Tabulating data, Comparing to Hagen Table 1 
 ```{r}
-#Hagen num obs: 525509. my num obs: 525574 - INCONSISTENT
-#average sentence: 58.1135. Hagen: 56.782 - INCONSISTENT
+#Hagen num obs: 525509. my num obs: 525574 - INCONSISTENT. I have 65 more observations than Hagen. 
+#average sentence: 58.1135. Hagen: 56.782 - INCONSISTENT. might have to do with how we recoded Life sentences? 
+sum(!is.na(combine$SENTENCE)) - sum(combine$SENTENCE == 0, na.rm = TRUE)
+summary(combine$SENTENCE) 
+sum(combine$SENTENCE == 0, na.rm = TRUE) #1262 zeroes 
 mean(combine$SENTENCE, na.rm = TRUE) 
-table(combine$SENTENCE)
+table(combine$SENTENCE, useNA = "always") #no obvious place where 65 observations would have been added/coerced from NAs
 
 #num obs: 603635, consistent with Hagen 
 #average age: 34.52, consistent with Hagen 
 mean(combine$AGE, na.rm = TRUE)
-table(combine$AGE) #min: 16. max: 103. consistent with Hagen.  
+table(combine$AGE, useNA = "always") #min: 16. max: 103. consistent with Hagen.  
 
 mean(combine$MALE, na.rm = TRUE) #mean = 0.8638, consistent with Hagen.   
-table(combine$MALE) #consistent with Hagen 
+table(combine$MALE, useNA = "always") #consistent with Hagen 
 
 #percent high school or GED: 29.70, consistent with Hagen
 mean(combine$HSGED, na.rm=TRUE)
-table(combine$HSGED) #consistent with Hagen 
+table(combine$HSGED, useNA = "always") #consistent with Hagen 
 
 #percent some post high school: 15.17, consistent with Hagen 
 mean(combine$SOMEPOSTHS, na.rm=TRUE)
-table(combine$SOMEPOSTHS) #84,377 post-HS, consistent with Hagen. 
+table(combine$SOMEPOSTHS, useNA = "always") #84,377 post-HS, consistent with Hagen. 
 
 mean(combine$POSTHSDEGREE, na.rm = TRUE) #7.63, consistent with Hagen 
-table(combine$POSTHSDEGREE) #consistent with Hagen
+table(combine$POSTHSDEGREE, useNA = "always") #consistent with Hagen
 
 #Hagen num obs: 618825
 mean(combine$HISPANIC, na.rm = TRUE) #41.83. Hagen: 40.07. inconsistent because Hagen treats NAs as "Other"/0.
 table(combine$HISPANIC) #247965, consistent with Hagen.
 
 mean(combine$USCITIZEN, na.rm=TRUE) #63.63. Hagen: 60.79. inconsistent because Hagen treats NAs as 0s
-table(combine$USCITIZEN) #376,207, consistent with Hagen. 
+table(combine$USCITIZEN, useNA = "always") #376,207 citizens, consistent with Hagen. 
 sum(combine$USCITIZEN == 0 | is.na(combine$USCITIZEN)) #242,618
 
 #Hagen num obs: 618825
 mean(combine$CRIMINAL, na.rm=TRUE) #74.18. Hagen: 70.23. inconsistent because Hagen converts NAs to 0s. 
-table(combine$CRIMINAL) #434,616 with criminal history, consistent with Hagen.  
+table(combine$CRIMINAL, useNA = "always") #434,616 with criminal history, consistent with Hagen.  
 sum(combine$CRIMINAL, na.rm = TRUE)/length(combine$CATEGORY) #when I include NAs, the percent w/ crim hist = 70.23 
 
-table(combine$CATEGORY) #consistent with Hagen 
+table(combine$CATEGORY, useNA = "always") #consistent with Hagen 
 
 mean(combine$NOCOUNTS, na.rm = TRUE) #1.46, consistent with Hagen 
-table(combine$NOCOUNTS) #all categories are numeric except "imm"
+table(combine$NOCOUNTS, useNA = "always") #all categories are numeric except "imm"
 #min = 0, max = 495, consistent with Hagen 
 
-mean(combine$POINTS > 0, na.rm = TRUE) #60.14. Hagen: 59.91. INCONSISTENT
-table(combine$POINTS > 0) #341028. Hagen: criminal pts present: 347142. not present: 232330. INCONSISTENT
-sum(combine$POINTS==0 | is.na(combine$POINTS)) #number of 0s or NAs = 277797
+#the variable labeled POINTS in Hagen's Table 1 is actually CRPTS, which, instead of being a continuous variable as Hagen describes on p. 14, is a binary indicator of whether criminal points were applied 
+mean(combine$POINTS, na.rm = TRUE)
+table(combine$POINTS, useNA = "always") 
 
-#Hagen total obs = 579472. my total obs = 567053
-sum(tolower(combine$POINTS) %in% c("no history pts appld","no history points applied")) #146832
-sum(is.na(combine$POINTS))
-
+mean(combine$CRPTS, na.rm = TRUE) #59.91, consistent with Hagen 
+table(combine$CRPTS, useNA = "always") #347142, consistent with Hagen 
 
 mean(combine$TRIAL, na.rm=TRUE) #4.10%, consistent with Hagen
-table(combine$TRIAL) 
+table(combine$TRIAL, useNA = "always") 
 
-table(combine$YR) #consistent with Hagen. 
+table(combine$YR, useNA = "always") #consistent with Hagen. 
 
-table(combine$SWB) #184881, consistent with Hagen.
+table(combine$SWB, useNA = "always") #184881, consistent with Hagen.
 
-table(combine$PRIM_OFFENSE) #INCONSISTENT
+table(combine$RACE, useNA = "always")
+
+table(combine$PRIM_OFFENSE, useNA = "always") #INCONSISTENT
+```
+
+### Check covariance between variables 
+```{r}
+names(combine)
+#sentence length increases with age of person arrested
+cov(combine$SENTENCE, combine$AGE, use="complete.obs") #use=complete.obs removes observations by casewise ddeletion 
+cov(combine$SENTENCE, combine$HISPANIC, use="complete.obs") #being hispanic is associated with decreased sentence length on average. this is consistent  
+
+cov(combine$SENTENCE, combine$RACE=="black", use="complete.obs") #as expected, sentences are longer for Black people 
+cov(combine$SENTENCE, combine$RACE =="white", use="complete.obs") #as expected, sentences are shorter for white people 
+cov(combine$SENTENCE, combine$MALE, use="complete.obs") #men get longer sentences 
+cov(combine$SENTENCE, combine$TRIAL, use="complete.obs") #as expected, people who go to trial get longer sentences
+cor(combine$SENTENCE, combine$TRIAL, use="complete.obs")
+
+cov(combine$POSTHSDEGREE, combine$HISPANIC, use="complete.obs") #being hispanic is associated with lower rate of post-secondary degree 
+cor(combine$POSTHSDEGREE, combine$HISPANIC, use="complete.obs")
+
+cov(combine$SENTENCE, combine$POSTHSDEGREE, use="complete.obs") #postsecondary degree is associated with shorter sentence 
+
+cov(combine$SENTENCE, combine$CRIMINAL, use="complete.obs") #as expected, criminal history is associated with longer sentence 
+
+cov(combine$SENTENCE, combine$USCITIZEN, use = "complete.obs") #unexpectedly, US citizenship is associated with longer sentences. my covariate-adjusted coefficient for citizenship has the opposite relationship.  
+cor(combine$SENTENCE, combine$USCITIZEN, use="complete.obs")
+
+cov(combine$SENTENCE, combine$PRIM_OFFENSE=="violent", use="complete.obs") #violent crimes get longer sentences than others
+
+cov(combine$USCITIZEN, combine$PRIM_OFFENSE=="violent", use="complete.obs") 
+cor(combine$USCITIZEN, combine$PRIM_OFFENSE=="violent", use="complete.obs") 
+#US citizens are more likely to be sentenced for violent crimes than noncitizens 
+```
+
+
+### Mean sentence length by race, citizenship, Hispanic ethnicity 
+```{r}
+mean(combine$SENTENCE[combine$RACE=="black"], na.rm = TRUE) #90.57
+mean(combine$SENTENCE[combine$RACE=="white"], na.rm = TRUE) #48.15
+mean(combine$SENTENCE[combine$RACE == "aian"], na.rm=TRUE) #64.65 
+mean(combine$SENTENCE[combine$RACE == "apic"], na.rm = TRUE) #46.70 
+mean(combine$SENTENCE[combine$RACE == "multi"], na.rm = TRUE) #68.82 
+mean(combine$SENTENCE[combine$USCITIZEN==1], na.rm = TRUE) #72.67
+mean(combine$SENTENCE[combine$USCITIZEN==0], na.rm = TRUE) #37.70 
+mean(combine$SENTENCE[combine$HISPANIC==1], na.rm = TRUE) #43.56
+mean(combine$SENTENCE[combine$HISPANIC==0 & combine$RACE == "white"], na.rm = TRUE) #57.58 #non-hispanic white people have longer sentences on average than hispanic folks. this may be related to the selection bias that Hagen points out
+
+#some differences in means, subset by crime category 
+mean(combine$SENTENCE[combine$RACE=="black" & combine$PRIM_OFFENSE == "violent"], na.rm = TRUE) - mean(combine$SENTENCE[combine$RACE=="white" & combine$PRIM_OFFENSE == "violent"], na.rm = TRUE) #as expected, Black folks get longer sentences 
+
+mean(combine$SENTENCE[combine$RACE=="black" & combine$PRIM_OFFENSE == "drugs"], na.rm = TRUE) - mean(combine$SENTENCE[combine$RACE=="white" & combine$PRIM_OFFENSE == "drugs"], na.rm = TRUE) #huge disparity for drug sentences
+
+mean(combine$SENTENCE[combine$RACE=="black" & combine$PRIM_OFFENSE == "public order"], na.rm = TRUE) - mean(combine$SENTENCE[combine$RACE=="white" & combine$PRIM_OFFENSE == "public order"], na.rm = TRUE)
+
+mean(combine$SENTENCE[combine$USCITIZEN==0 & combine$PRIM_OFFENSE == "violent"], na.rm = TRUE) - mean(combine$SENTENCE[combine$USCITIZEN==1 & combine$PRIM_OFFENSE == "violent"], na.rm = TRUE)
+#noncitizens get longer sentences for violent crimes 
 ```
 
 ### Comparison to Hagen Table 4
 ```{r}
 #subset data for immigration offenses 
-imm <- complete[complete$PRIM_OFFENSE == "Immigration", ]
-nrow(imm) #N = 116770. Hagen: 111774. Uh oh again - 5000 seems like a substantial discrepancy 
+imm <- combine[combine$PRIM_OFFENSE == "immigration" & !is.na(combine$PRIM_OFFENSE), ]
+nrow(imm) #N = 138993. Hagen: 111774.
 
-#split into SWB and non-SWB region - the Ns are very off (compare to Hagen p. 30) 
+#split into SWB and non-SWB region 
 imm_swb <- imm[imm$SWB == 1, ]
 imm_notswb <- imm[imm$SWB == 0, ]
-nrow(imm_swb)
-nrow(imm_notswb)
+nrow(imm_swb) #93678. Hagen: 78695
+nrow(imm_notswb) #45315. Hagen: 33079 
 
 lm_imm_swb <- lm(SENTENCE ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2001 + YR2002 + YR2003 + YR2004 + YR2005 + YR2006 + YR2007 + YR2008, data = imm_swb)
 summary(lm_imm_swb)
+#main differences: my MALE coef is larger. my SOMEPOSTHS is smaller and not significant. my HISPANIC is smaller and not significant. my CRIMINAL is more negative, and significant. my POINTS is in opposite direction. 
 
 lm_imm_notswb <- lm(SENTENCE ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2001 + YR2002 + YR2003 + YR2004 + YR2005 + YR2006 + YR2007 + YR2008, data = imm_notswb)
 summary(lm_imm_notswb)
+#my POINTS is in opposite direction, and significant. otherwise all same direction. 
 ```
-*Most of these coefficients have the same direction and order of magnitude as those reported by Hagen in Table 4. But the coefficients still seem unacceptably inconsistent*
+
+
