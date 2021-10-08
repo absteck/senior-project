@@ -1,7 +1,7 @@
 ---
 title: "Import and Clean"
 author: "Abby Steckel"
-date: "10/4/2021"
+date: "10/7/2021"
 output:
   html_document: default
   word_document: default
@@ -86,11 +86,11 @@ which(names(data2000) %in% c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", 
 library(asciiSetupReader)
 #2000 DATA 
 setup2000 <- asciiSetupReader::parse_setup('spss_2000_setup.sps')
-setup2000$setup 
-setup2000$missing
+#setup2000$setup 
+#setup2000$missing
 
 data2000 <- read_ascii_setup("spss_2000_data.txt.zip", "spss_2000_setup.sps", use_clean_names = FALSE)
-head(data2000)
+#head(data2000)
 #dim(data2000)
 
 #2001 DATA 
@@ -154,16 +154,13 @@ data2008 <- read.spss("spss_2008_data.sav", to.data.frame=TRUE, use.value.labels
 ```{r}
 #These are the same variables that Hagen selected from the BJS dataset, except for OFFTYPE2, which I'm using instead of TTIGRON 
 
-#REMOVE CRPTS AFTER COMPARING TO HAGEN
 #from 2000-2003, there was a sentdate variable. beginning in 2004, it became sentyr and sentmon 
 vars00 <- c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMHIST", "XCRHISSR", "NOCOUNTS", "CRIMPTS", "NEWCNVTN", "SENTDATE", "DISTRICT", "OFFTYPE2", "CRPTS", "MONRACE")
-
 vars04 <- c("SENTTOT", "AGE", "MONSEX", "EDUCATN", "HISPORIG", "CITIZEN", "CRIMHIST", "XCRHISSR", "NOCOUNTS", "CRIMPTS", "NEWCNVTN", "SENTYR", "DISTRICT", "OFFTYPE2", "CRPTS", "MONRACE")
 ```
 
 ### Rename variables and force same data types across years 
 ```{r}
-#REMOVE CRPTS AFTER TESTING
 #rename columns to have the same names as Hagen assigned
 hagen_names <- c("SENTENCE", "AGE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "CATEGORY", "NOCOUNTS", "POINTS", "TRIAL", "YR", "DISTRICT", "PRIM_OFFENSE", "CRPTS", "RACE")
 
@@ -195,19 +192,6 @@ data2006 <- data2006[,hagen_names]
 data2007 <- data2007[,hagen_names]
 data2008 <- data2008[,hagen_names]
 
-# #function to get year from format d(d)m(m)yyyy
-# getyr <- function(date){
-#   date <- as.character(date)
-#   len <- nchar(date)
-#   yr <- substr(date, len-3, len)
-#   return(yr)
-# }
-# #for 2000-2004 dates, create new YR variable that just contains the year of sentencing
-# data2000$YR <- getyr(data2000$YR)
-# data2001$YR <- getyr(data2001$YR)
-# data2002$YR <- getyr(data2002$YR)
-# data2003$YR <- getyr(data2003$YR)
-# data2004$YR <- getyr(data2004$YR)
 data2000$YR <- "99_00"
 data2001$YR <- "00_01"
 data2002$YR <- "01_02"
@@ -236,12 +220,8 @@ data2008$YR <- "07_08"
 #I converted all variables except age, number of counts, category, and district data to characters for ease of combining dataframes from different years, which may have used different data types . 
 #I will convert each variable to the appropriate data type after combining 
 
-#REMOVE CRPTS AFTER TESTING
 #variables to convert to characters 
 char_vars <- c("SENTENCE", "MALE", "EDUCATN", "HISPANIC", "USCITIZEN", "CRIMINAL", "POINTS", "TRIAL", "PRIM_OFFENSE", "CRPTS", "RACE")
-
-#would like to figure out how perform the same operation on the list of dfs
-#dfs <- list(data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008) 
 
 for(var in char_vars){
   data2000[,var] <- as.character(data2000[,var])
@@ -274,6 +254,7 @@ data2007$DISTRICT <- as.numeric(data2007$DISTRICT)
 data2008$DISTRICT <- as.numeric(data2008$DISTRICT)
 ```
 
+
 ### Combine data for all years 
 ```{r}
 library(dplyr)
@@ -283,37 +264,13 @@ if(nrow(data2000) + nrow(data2001) + nrow(data2002) + nrow(data2003) + nrow(data
   print("dimension mismatch")
 } 
 
-nrow(combine[complete.cases(na_if(combine, "")),]) #if we replace all blanks with NAs, # of complete rows = 422338
+nrow(combine[complete.cases(na_if(combine, "")),]) #if we replace all blanks with NAs, # of complete rows = 468737
 nrow(combine) #total number of observations = 618825 
-
-# #check missingness of a couple columns compared to Hagen's Table 1
-sum(is.na(combine$AGE)==FALSE) #603635: same number of age observations as Hagen
-sum(is.na(combine$NOCOUNTS) == FALSE) #616935: consistent with Hagen 
-
-sum(is.na(combine$SENTENCE) == FALSE) #number of sentence observations = 525574. Hagen: 525509
-# rev(table(combine$SENTENCE))
-summary(as.numeric(gsub("990 months or more", 990, gsub("life", 470, tolower(combine$SENTENCE)))), na.rm = TRUE) #no negative values. max = 11520, consistent with Hagen. but min = 0.0 while Hagen min = 0.3 
 ```
 
-### Writing and reading .csv.gz files
-```{r}
-# write combined data to compressed file 
-# library(crunch)
-# write.csv.gz(combine, "/Users/abbysteckel/Desktop/combined.csv.gz")
 
-# library(R.utils)
-# test <- read.csv('/Users/abbysteckel/Desktop/test.csv.gz')
-# 
-# combine <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
-# 
-# head(combine)
-# dim(combine) 
-# #problem: blank spaces won't be filtered out by na.omit or complete.cases 
-# library(tidyverse)
-# combine <- na_if(combine, "")
-```
-
-### Reformatting data  
+### Reformatting data 
+*Initially, I used ifelse() statements, but realized I was converting NAs into 0s. I switched to mostly base R to make sure that NAs remain NAs.*
 ```{r}
 #Create indicators for year of sentencing 
 combine$YR2000 <- ifelse(combine$YR == "99_00", 1, 0) 
@@ -326,8 +283,8 @@ combine$YR2006 <- ifelse(combine$YR == "05_06", 1, 0)
 combine$YR2007 <- ifelse(combine$YR == "06_07", 1, 0)
 combine$YR2008 <- ifelse(combine$YR == "07_08", 1, 0)
 
-#unique(tolower(combine$EDUCATN)) #NAs should remain NAs! 
-#create indicators for highest education level achieved. note that there was slight variation in the level labels between years, hence the need for a bit of cleaning
+#unique(tolower(combine$EDUCATN)) 
+#create indicators for highest education level achieved. there was slight variation in the level labels between years, hence the need for a bit of cleaning
 #if education = "high school graduate" or "GED (general education diploma)", or corresponding numeric levels  
 combine$HSGED <- rep(200, length(combine$EDUCATN)) #create an array of 200s (200 is an arbitrary placeholder instead of NA)
 combine$HSGED[tolower(combine$EDUCATN) %in% c("g.e.d.", "high school graduate", "g.e.d. (general education diploma)", "12", "21")] <- 1
@@ -357,7 +314,7 @@ combine$SENTENCE[tolower(combine$SENTENCE) %in% c("life") & combine$HISPANIC %in
 combine$SENTENCE[tolower(combine$SENTENCE) %in% c("life")] <- 945.6 #non-Hispanic people or people with unknown ethnicity have an average life expectancy of 78.8 years/945.6 months 
 
 #create SWB indicator of whether the case district is in the Southwest Border region
-#there are no NA values for dDISTRICT, so it's ok to use ifelse()
+#there are no NA values for DISTRICT, so it's ok to use ifelse()
 combine$SWB <- ifelse(combine$DISTRICT %in% c(41, 42, 84, 70, 74), 1, 0)
 
 #create offense category indicators
@@ -367,7 +324,7 @@ combine$CATEGORY4 <- ifelse(combine$CATEGORY == 4, 1, 0)
 combine$CATEGORY5 <- ifelse(combine$CATEGORY == 5, 1, 0)
 combine$CATEGORY6 <- ifelse(combine$CATEGORY == 6, 1, 0)
 
-#convert to correct data types - careful with NA handling! 
+#convert to correct data type
 combine$SENTENCE <- as.numeric(combine$SENTENCE) #NAs passed through as.numeric() remain NAs
 combine$AGE <- as.numeric(combine$AGE) 
 
@@ -379,7 +336,8 @@ combine$MALE <- as.numeric(combine$MALE)
 
 combine$HISPANIC[tolower(combine$HISPANIC) %in% c("non-hispanic", "1", "0")] <- 0
 combine$HISPANIC[combine$HISPANIC %in% c("Hispanic", "2")] <- 1
-combine$HISPANIC[combine$HISPANIC %in% c("Information Not Available")] <- NA 
+combine$HISPANIC[combine$HISPANIC %in% c("Information Not Available")] <- NA
+# combine$HISPANIC <- ifelse(combine$HISPANIC %in% c("Hispanic", "2"), 1, 0): this is Hagen's method 
 combine$HISPANIC <- as.numeric(combine$HISPANIC) 
 
 combine$USCITIZEN[tolower(combine$USCITIZEN) %in% c("united states citizen", "united states citzen", "1")] <- 1
@@ -414,23 +372,44 @@ combine$RACE[combine$RACE =="8"] <- NA
 ```
 
 ### Recoding primary offense variable 
+
+*I checked the codebooks for 2000-2008 and confirmed that the match between strings and numeric levels is the same for all years, save spelling/abbreviation differences. Because the sample is so large, I will leave the 35 levels as-is and avoid possible interpretation issues that could come with my grouping offenses into new levels.*
 ```{r}
-#sort(unique(tolower(combine$PRIM_OFFENSE)))
-combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("1", "2", "3", "4", "5", "6", "assault", "bank robbery", "bank robbery (includes offtype 7, other", "kidnaping /hostage", "kidnaping/hostage", "manslaughter", "murder", "sexual abuse")] <- "violent"
-sum(combine$PRIM_OFFENSE == "violent", na.rm = TRUE) #22013. Hagen: 21593
-combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("firearms: use (includes offtype 14, fire", "firearms:use", "13", "14")] <- "weapons"
-sum(combine$PRIM_OFFENSE == "weapons", na.rm=TRUE) #61762. Hagen: 62147
-combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("immigration", "27")] <- "immigration"
-sum(combine$PRIM_OFFENSE == "immigration", na.rm = TRUE) #138993. Hagen = 129976 
+combine$PRIM_OFFENSE <- tolower(combine$PRIM_OFFENSE)
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "1"] <- "murder"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "2"] <- "manslaughter"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("3", "kidnaping /hostage", "kidnaping/hostage")] <- "kidnaping"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "4"] <- "sexual abuse"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "5"] <- "assault"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("6", "bank robbery (includes offtype 7, other")] <- "bank robbery"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "9"] <- "arson"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("10", "drugs: trafficking", "drugs:trafficking")] <- "drug trafficking"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("11", "drugs: communication facilities", "drugs:comm facils")] <- "drug comm facils"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("12", "drugs: simple possession", "drugs:smpl posses")] <- "drug posession"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("13", "firearms: use (includes offtype 14, fire", "firearms:use")] <- "firearms"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("15", "brglry/break & enter", "burglary/breaking and entering")] <- "burglary"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "16"] <- "auto theft"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "17"] <- "larceny"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "18"] <- "fraud"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "19"] <- "embezzlement"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("20", "forgery / counterfeiting", "forgery/countrfeitng")] <- "forgery"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "21"] <- "bribery"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "22"] <- "tax offenses"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "23"] <- "money laundering"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("24", "racketeering (includes offtype 8, extort")] <- "racketeering"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("25", "gambling / lottery", "gambling/lottery")] <- "gambling"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("26", "civil rights offnses")] <- "civil rights offenses"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "27"] <- "immigration"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("28", "pornography/prostitn", "pornography / prostitution")] <- "porn / prostitution"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "29"] <- "offenses in prisons"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("30", "admin of just-related", "admin of just-relted")] <- "admin of justice"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("31", "env/game/fish/wldlfe", "environmental, game, fish, and wildlife")] <- "environmental"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("32", "national defense offenses", "natnl defense offens")] <- "natl defense"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE == "33"] <- "antitrust violations"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("34", "food and drug offenses", "food & drug offenses")] <- "food and drug"
+combine$PRIM_OFFENSE[combine$PRIM_OFFENSE %in% c("35", "traffic violations and other offenses", "trffc violatns & oth")] <- "traffic and other"
 
-combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("drugs: communication facilities", "drugs: simple possession", "drugs: trafficking", "drugs:comm facils","drugs:smpl posses", "drugs:trafficking", "10", "11", "12")] <- "drugs"
-sum(combine$PRIM_OFFENSE == "drugs", na.rm = TRUE) #229984. Hagen: 232010
-
-combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("gambling / lottery","gambling/lottery","pornography / prostitution","pornography/prostitn", "25", "28")] <- "public order"
-sum(combine$PRIM_OFFENSE == "public order", na.rm = TRUE) #10003. Hagen: 53895. I must be missing several crimes in this category. 
-
-combine$PRIM_OFFENSE[tolower(combine$PRIM_OFFENSE) %in% c("arson", "9", "brglry/break & enter", "burglary/breaking and entering", "15", "auto theft", "16", "larceny", "17")] <- "property"
-sum(combine$PRIM_OFFENSE == "property", na.rm = TRUE) #20562. Hagen: 117,274. I'm clearly leaving out a lot here. 
+sort(table(combine$PRIM_OFFENSE, useNA = "always"))
 ```
 
 ### Tabulating data, Comparing to Hagen Table 1 
@@ -495,9 +474,7 @@ table(combine$YR, useNA = "always") #consistent with Hagen.
 
 table(combine$SWB, useNA = "always") #184881, consistent with Hagen.
 
-table(combine$RACE, useNA = "always")
-
-table(combine$PRIM_OFFENSE, useNA = "always") #INCONSISTENT
+table(combine$RACE, useNA = "always") 
 ```
 
 ### Check covariance between variables 
@@ -552,6 +529,10 @@ mean(combine$SENTENCE[combine$RACE=="black" & combine$PRIM_OFFENSE == "public or
 
 mean(combine$SENTENCE[combine$USCITIZEN==0 & combine$PRIM_OFFENSE == "violent"], na.rm = TRUE) - mean(combine$SENTENCE[combine$USCITIZEN==1 & combine$PRIM_OFFENSE == "violent"], na.rm = TRUE)
 #noncitizens get longer sentences for violent crimes 
+
+mean(combine$SENTENCE[combine$HISPANIC==1 & combine$PRIM_OFFENSE == "violent"], na.rm = TRUE) - mean(combine$SENTENCE[combine$HISPANIC==0 & combine$PRIM_OFFENSE == "violent"], na.rm = TRUE)
+
+mean(combine$SENTENCE[combine$HISPANIC==1 & combine$PRIM_OFFENSE == "public order"], na.rm = TRUE) - mean(combine$SENTENCE[combine$HISPANIC==0 & combine$PRIM_OFFENSE == "public order"], na.rm = TRUE)
 ```
 
 ### Comparison to Hagen Table 4
@@ -568,11 +549,30 @@ nrow(imm_notswb) #45315. Hagen: 33079
 
 lm_imm_swb <- lm(SENTENCE ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2001 + YR2002 + YR2003 + YR2004 + YR2005 + YR2006 + YR2007 + YR2008, data = imm_swb)
 summary(lm_imm_swb)
-#main differences: my MALE coef is larger. my SOMEPOSTHS is smaller and not significant. my HISPANIC is smaller and not significant. my CRIMINAL is more negative, and significant. my POINTS is in opposite direction. 
+#main differences: my MALE coef is larger. my SOMEPOSTHS is smaller and not significant. my HISPANIC is smaller and not significant, even when I recode so that NAs are "Other". my CRIMINAL is more negative, and significant. my POINTS is in opposite direction. 
 
 lm_imm_notswb <- lm(SENTENCE ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2001 + YR2002 + YR2003 + YR2004 + YR2005 + YR2006 + YR2007 + YR2008, data = imm_notswb)
 summary(lm_imm_notswb)
-#my POINTS is in opposite direction, and significant. otherwise all same direction. 
+#my POINTS is in opposite direction to Hagen's, and significant. otherwise all same direction. 
+
+summary(lm(SENTENCE ~ RACE + PRIM_OFFENSE + HISPANIC, data=combine))
 ```
 
 
+### Writing and reading .csv.gz files
+```{r, eval=FALSE}
+# write combined data to compressed file 
+library(crunch)
+write.csv.gz(combine, "/Users/abbysteckel/Desktop/combined.csv.gz")
+
+# library(R.utils)
+# test <- read.csv('/Users/abbysteckel/Desktop/test.csv.gz')
+# 
+# combine <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
+# 
+# head(combine)
+# dim(combine) 
+# #problem: blank spaces won't be filtered out by na.omit or complete.cases 
+# library(tidyverse)
+# combine <- na_if(combine, "")
+```
