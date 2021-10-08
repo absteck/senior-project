@@ -1,0 +1,36 @@
+---
+title: "KLM Bounds"
+author: "Abby Steckel"
+date: "10/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Read data 
+```{r}
+library(R.utils)
+df <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
+dim(df)
+head(df)
+#problem: blank spaces won't be filtered out by na.omit or complete.cases
+library(tidyverse)
+df <- na_if(combine, "")
+# all(df == combine, na.rm = TRUE) #returns True 
+# identical(df, combine) #returns True 
+
+#I don't think this is a problem, but note that the uncompressed file has different data types than the original. in the original, indicators were stored as doubles. the new df stores indicators as ints. characters/strings remain of type chr, but empty strings are blank instead of NA 
+```
+
+
+### Model using LM 
+ADD DISCUSSION OF WHAT KIND OF MODEL THIS IS (FIXED EFFECTS, OLS, ?)
+```{r}
+lm1 <- lm(SENTENCE ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2001 + YR2002 + YR2003 + YR2004 + YR2005 + YR2006 + YR2007 + YR2008 + PRIM_OFFENSE, data=df)
+summary(lm1)
+
+
+```
+
