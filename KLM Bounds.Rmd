@@ -12,25 +12,171 @@ knitr::opts_chunk$set(echo = TRUE)
 ### Read data 
 ```{r}
 library(R.utils)
-df <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
-dim(df)
-head(df)
+combine <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
+dim(combine)
+#head(df)
 #problem: blank spaces won't be filtered out by na.omit or complete.cases
 library(tidyverse)
-df <- na_if(combine, "")
+combine <- na_if(combine, "")
 # all(df == combine, na.rm = TRUE) #returns True 
 # identical(df, combine) #returns True 
 
 #I don't think this is a problem, but note that the uncompressed file has different data types than the original. in the original, indicators were stored as doubles. the new df stores indicators as ints. characters/strings remain of type chr, but empty strings are blank instead of NA 
 ```
 
-
-### Model using LM 
-ADD DISCUSSION OF WHAT KIND OF MODEL THIS IS (FIXED EFFECTS, OLS, ?)
+### Get subset of data of folks who identify as either Black or white
 ```{r}
-lm1 <- lm(SENTENCE ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2001 + YR2002 + YR2003 + YR2004 + YR2005 + YR2006 + YR2007 + YR2008 + PRIM_OFFENSE, data=df)
-summary(lm1)
+df <- combine[combine$RACE %in% c("black", "white"), ]
+#table(combine$RACE) #150372 Black folks + 404200 white folks = 554572
+#nrow(df)
+#table(df$RACE)
+df$RACE <- ifelse(df$RACE == "black", 1, 0)
+```
 
+### Check balance of covariates between subjects with and without response data
+```{r}
+df$PRIM_OFFENSE <- as.factor(df$PRIM_OFFENSE)
+df$PRIM_OFFENSE_num <- as.numeric(df$PRIM_OFFENSE) #create numeric version of PRIM_OFFENSE
+missing <- df[is.na(df$SENTENCE), ]
+nonmissing <- df[!is.na(df$SENTENCE), ]
+
+vars <- names(df)[!names(df) %in% c("SENTENCE", "EDUCATN", "YR", "PRIM_OFFENSE")]
+pvals <- rep(NA, length(vars))
+for(i in 1:length(vars)){
+  #for each predictor, get p-value of t-test of difference in means between missing and nonmissing dfs 
+  pvals[i] <- t.test(missing[,vars[i]], nonmissing[,vars[i]])$p.value
+} 
+
+vars[which(pvals < 0.01)] #all but 2 predictor variables are imbalanced between the missing vs nonmissing datasets 
+vars[which(pvals > 0.01)] #race is balanced 
+
+#a concern that I have is that if observations of certain crimes are disproportionately missing, that this missingness may be linked to important characteristics of the case. for example, Hagen theorized that missing data due to deportations led to a downwardly biased estimate of the sentencing disparity between Hispanic noncitizens and non-Hispanic citizens, because people who got deported belonged to a group that would have otherwise received long sentences. 
+
+#Similarly, I could imagine a situation where data on, say, domestic drug trafficking sentences is missing because of some administrative rule applying to certain convictions, and that this could obscure the contribution of those cases to longer sentences for Black folks.
+
+#Below are tables of the primary offenses of the subjects in the missing vs nonmissing datasets. The relative frequencies of the main offenses don't seem dramatically different 
+sort(table(missing$PRIM_OFFENSE))
+sort(table(nonmissing$PRIM_OFFENSE))
+
+mean(missing$TRIAL, na.rm = TRUE) #a smaller percentage of the missing observations went to trial, which I think makes sense based on what cases would have gotten administrative attention 
+mean(nonmissing$TRIAL, na.rm = TRUE)
+
+mean(missing$NOCOUNTS, na.rm = TRUE)
+mean(nonmissing$NOCOUNTS, na.rm = TRUE) #nonmissing cases have more counts of conviction 
+
+mean(missing$CRIMINAL, na.rm = TRUE)
+mean(nonmissing$CRIMINAL, na.rm = TRUE) #more people with criminal history in the nonmissing dataset 
+
+mean(missing$POINTS, na.rm = TRUE)
+mean(nonmissing$POINTS, na.rm = TRUE) #nonmissing cases have larger criminal points subtotals 
+
+mean(missing$CATEGORY, na.rm = TRUE)
+mean(nonmissing$CATEGORY, na.rm = TRUE) #nonmissing observations have higher average offense categories, ie more severe convictions
+```
+
+The observations with missing sentence data are generally less severe convictions than those for which sentence data is present. This is concerning.  
+
+### Naive difference in means 
+```{r}
+#on average and without considering selection bias, Black people are sent to prison for 42.41 months longer than white people 
+mean(df$SENTENCE[df$RACE==1], na.rm = TRUE) - mean(df$SENTENCE[df$RACE==0], na.rm = TRUE)
+```
+
+
+### Proportion of white and Black folks in each primary offense category 
+```{r}
+sum(df$RACE)/length(df$RACE) #27% Black folks 
+#check that there is variation in race in each primary offense category
+t <- table(df$PRIM_OFFENSE, df$RACE)
+sort(apply(t, 1, function(x) x[1]/sum(x))) #proportion of subjects in each primary offense category who are Black. ranges from 0.035 for antitrust violations to 0.505 for firearms  
+
+#does the ratio of Black to white people in each category differ more than we expect by chance? 
+aov1 <- aov(df$RACE ~ df$PRIM_OFFENSE)
+summary(aov1)
+TukeyHSD(aov1)
+#yes, the ratio of Black to white people is significantly different between different categories. only a few of the Tukey confidence intervals for the difference in means between categories contain 0.
+
+#how should the fact that Black and white folks are placed into different primary offense categories affect analysis of sentencing disparities? 
+
+#consider just the firearms category data 
+gun_convictions <- df[df$PRIM_OFFENSE == "firearms", ]
+table(gun_convictions$RACE)
+lm_guns <- lm(SENTENCE ~ RACE, data = gun_convictions)
+summary(lm_guns) #the average sentence for a white person with a firearms conviction is 22 months shorter than for a Black person
+
+lm_guns2 <- lm(SENTENCE ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2001 + YR2002 + YR2003 + YR2004 + YR2005 + YR2006 + YR2007 + YR2008 + RACE, data=gun_convictions)
+summary(lm_guns2) #controlling for all the available covariates, white people with gun convictions get 10-month shorter sentences 
+
+#Could I do a similation considering different possible background information/unobserved covariates about the firearms cases? 
+
+#the question is, holding all observed covariates equal, do Black folks have the same probability as white folks of receiving a conviction as severe as the one they received? The KLM methodology is based on the assumption that the answer is probably "no."  
+
+#I thought that the below regression could help explore the extent to which race is predictive of the reported severity of a person's conviction, controlling for the offense category. I think the fact that race is predictive of putative crime severity suggests that people are placed in race-based categories prior to being sentenced, which may be a source of selection bias. However, I am skeptical of the below regression because nearly all coefficients, including several "year of sentencing" indicators, are listed as statistically significant, which seems unlikely.
+lm_severity <- lm(CATEGORY ~ RACE + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + NOCOUNTS + POINTS + TRIAL + YR2001 + YR2002 + YR2003 + YR2004 + YR2005 + YR2006 + YR2007 + YR2008 + PRIM_OFFENSE_num, data=nonmissing)
+summary(lm_severity) 
+```
+
+### Consider assumptions of a fixed effects linear model 
+*A fixed effects model assumes that the effect of the unobservable variables in each group is time-invariant. For example, in this case, we fit separate intercepts among the data points with the same PRIM_OFFENSE group. Fixed effects mdels assume that the unobserved variables associated with different groups have the same effect over time (time-invariant).*
+
+*Fixed effects models require sufficient variation among explanatory variables within each group. From table t (above), it seems like there are a decent amount of treatment and control observations in most groups.*
+
+### Linear regressions and robust standard errors 
+```{r}
+library(sandwich) #load package for computing robust SEs 
+#it makes sense to compute robust SEs instead of classical SEs because I can't know that the errors in my observational dataset are homoskedastic (unrelated to the explanatory variables)
+
+#linear model containing the following covariates: age, number of counts of conviction, subtotal of criminal points (related to length of previous sentences and circumstances of current offense); indicators for education level, Hispanic ethnicity, citizenship, presence of criminal history, crime category (1-6 scale), whether the case went to trial, and year of sentencing; and a categorical variable with levels for 35 different primary offenses. The "treatment" is whether a person is perceived as Black or white, and the response is sentence length. 
+lm_everything <- lm(SENTENCE ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2001 + YR2002 + YR2003 + YR2004 + YR2005 + YR2006 + YR2007 + YR2008 + PRIM_OFFENSE + RACE, data=df)
+summary(lm_everything) #race coef: 17.034534
+classic_ses_everything <- sqrt(diag(vcov(lm_everything)))
+#HC stands for "heteroskedasticity consistent." 
+#in the sandwich package, type HC0 makes omega = the matrix where the ith diagonal is the ith residual, squared
+robust_ses_everything <- sqrt(diag(vcovHC(lm_everything, type="HC0")))
+
+sum(robust_ses_everything - classic_ses_everything > 0)
+sum(robust_ses_everything - classic_ses_everything < 0)
+#huh, I expected the robust SEs to be larger than the classical SEs because robust SEs they make fewer assumptions.  
+```
+
+```{r}
+#baseline prim_offense is "admin of justice" 
+lm_race_offense_add <- lm(SENTENCE ~ RACE + PRIM_OFFENSE, data=df)
+summary(lm_race_offense_add) #race coef: 31.5499 
+lm_race_offense_interact <- lm(SENTENCE ~ RACE*PRIM_OFFENSE, data=df)
+summary(lm_race_offense_interact) #race coef: 9.1479
+
+#robust SEs 
+ses_race_offense_interact <- diag(vcovHC(lm_race_offense_interact, type="HC0"))^.5 
+#vcovHC(model) returns a covariance matrix estimator of the form $Xt(X)^{-1}t(X)\Omega X(t(X)X)^{-1}$, where X is the model matrix.
+#the entries of the diagonal of the covariance matrix are the estimated variance for the intercept and the predictors. 
+#the square root of each entry is the robust standard error of each free parameter 
+
+classic_ses_race_offense_interact <- sqrt(diag(vcov(lm_race_offense_interact)))
+sum(ses_race_offense_interact - classic_ses_race_offense_interact > 0)
+sum(ses_race_offense_interact - classic_ses_race_offense_interact < 0) #the majority of the robust SEs are smaller than the classical SEs in this case 
+
+robust_ses_race_offense_add <- sqrt(diag(vcovHC(lm_race_offense_add, type="HC0")))
+classic_ses_race_offense_add <- sqrt(diag(vcov(lm_race_offense_add)))
+sum(robust_ses_race_offense_add - classic_ses_race_offense_add > 0)
+sum(robust_ses_race_offense_add - classic_ses_race_offense_add < 0) #again, the majority of the robust SEs are smaller than the classical SEs 
+
+lm_race_off_ctzn_pts <- lm(SENTENCE ~ RACE + PRIM_OFFENSE + USCITIZEN + POINTS, data=df)
+summary(lm_race_off_ctzn_pts) #race coef: 22.47502
+robust_ses_race_off_ctzn_pts <- sqrt(diag(vcovHC(lm_race_off_ctzn_pts, type="HC0")))
+classic_ses_race_off_ctzn_pts <- sqrt(diag(vcov(lm_race_off_ctzn_pts)))
+sum(robust_ses_race_off_ctzn_pts - classic_ses_race_off_ctzn_pts > 0)
+sum(robust_ses_race_off_ctzn_pts - classic_ses_race_off_ctzn_pts < 0) #majority of robust SEs are smaller than classical SEs 
+```
+*OBSERVATIONS*
+
+DISCUSSION OF HOW THIS MODEL PROBABLY OVERFITS. TO WHAT EXTENT IS THAT A PROBLEM WHEN THE GOAL ISN'T PREDICTION? 
+
+IS THE QUESTION OF THE MAGNITUDE OF THE RACIAL DISPARITY A CAUSAL QUESTION? IF SO, DISCUSS TROUBLE WITH OBSERVATIONAL DATA. 
+
+
+### KLM Bounds
+```{r}
 
 ```
 
