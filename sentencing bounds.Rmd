@@ -1,0 +1,644 @@
+---
+title: "KLM Bounds"
+author: "Abby Steckel"
+date: "10/17/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Read data 
+```{r, message=FALSE, warning=FALSE}
+library(R.utils)
+library(tidyverse)
+combine <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
+combine <- na_if(combine, "")
+#subset to just Black or white folks 
+df <- combine[combine$RACE %in% c("black", "white"), ]
+df$RACE <- ifelse(df$RACE == "black", 1, 0)
+```
+
+
+### KLM Bounds
+$Y_i$ = sentence length 
+$D_i$ = whether the case involves a Black or white person, where $D_i = 1$ if the person is Black and 0 if they're white
+$M_i(d)$ = mediating variable. whether a person would have been included in the sample (convicted of at least as severe a crime) if they were of race $d$. For each observation in the dataset, $M_i(D_i)$ = 1. 
+
+Naive estimator $\Delta = E[Y_i|D_i = 1, M_i = 1] - E[Y_i|D_i = 0, M_i = 1]$
+KLM observe that the naive estimator is the weighted combination of average outcomes in the first three of the four principal strata: (1) always-convict (situations where both Black and white people would have been convicted), (2) anti-minority convictions (situations where the person wouldn't have been convicted, or would have received a less severe conviction, if they were white), (3) anti-white convictions, and (4) never-convict. 
+\[
+\begin{align*}
+\Delta = E[Y_i|D_i = 1, M_i(1) = 1, M_i(0) = 1] P(M_i(0) = 1 | M_i(1) = 1, D_i = 1) + E[Y_i|D_i = 1, M_i(1) = 1, M_i(0) = 0] P(M_i(0) = 0 | M_i(1) = 1, D_i = 1) - E[Y_i|D_i = 0, M_i(0) = 0, M_i(1) = 1] P(M_i(1) = 1 | M_i(0) = 0, D_i = 0) - E[Y_i|D_i = 0, M_i(0) = 0, M_i(1) = 0] P(M_i(1) = 0 | M_i(0) = 0, D_i = 0)
+\end{align*}
+\]
+
+```{r}
+#on average and without considering selection bias, Black people are sent to prison for 42.41 months longer than white people 
+mean(df$SENTENCE[df$RACE==1], na.rm = TRUE) - mean(df$SENTENCE[df$RACE==0], na.rm = TRUE)
+```
+
+KLM derive "large-sample nonparametric sharp bounds on the $ATE_{M=1}$ and the $ATT_{M=1}$." (10) 
+$ATE_{M=1} = E[Y_i(1, M_i(1)) | M_i = 1] - E[Y_i(0, M_i(0)) | M_i = 1]$. This is the ATE of being Black on sentence length, among people who were convicted.
+
+$ATT_{M=1}$ is the number of years that were added to the sentences of Black people who were convicted, which wouldn't have been added if they were white (regardless of whether they would have been convicted if they were white). 
+$ATT_{M=1} = E[Y_i(1, M_i(1)) | D_i = 1, M_i = 1] - E[Y_i(0, M_i(0)) | D_i = 1, M_i = 1]$
+
+### Adapting KLM code from bounds_20190120_blackwhite.R
+```{r, message=FALSE}
+## data manipulation
+library(reshape2)
+library(plyr)
+library(stringr)
+
+## math
+library(Matrix)
+library(MASS)
+library(speedglm)
+library(sandwich)
+
+## graphics
+library(ggplot2)
+#library(Cairo) throwing an error, doesn't seem essential 
+
+## parallel
+library(foreach)
+library(doMC)
+registerDoMC(cores = 8)
+
+red <- '#A31F34'
+blue <- '#325585'
+
+#create sentence levels  
+sentence.levels <- c(
+  'at least 0.03',
+  'at least 1',
+  'at least 6',
+  'at least 12',
+  'at least 24', 
+  'at least 48', 
+  'at least 72', 
+  'at least 96', 
+  'at least 120', 
+  'at least 180', 
+  'at least 240', 
+  'at least 300', 
+  'at least 360', 
+  'at least 420', 
+  'at least 480', 
+  'at least 540', 
+  'at least 600', 
+  'at least 720', 
+  'at least 840', 
+  'at least 960', 
+  'at least 1080'
+)
+
+#code sentence levels
+df <- df %>% mutate ( # https://dplyr.tidyverse.org/reference/mutate.html
+    sentence.levels = case_when( # https://dplyr.tidyverse.org/reference/case_when.html 
+      SENTENCE >= 1080 ~ 'at least 1080',
+      SENTENCE >= 960 ~ 'at least 960',
+      SENTENCE >= 840 ~ 'at least 840', 
+      SENTENCE >= 720 ~ 'at least 720', 
+      SENTENCE >= 600 ~ 'at least 600', 
+      SENTENCE >= 540 ~ 'at least 540', 
+      SENTENCE >= 480 ~ 'at least 480', 
+      SENTENCE >= 420 ~ 'at least 420', 
+      SENTENCE >= 360 ~ 'at least 360', 
+      SENTENCE >= 300 ~ 'at least 300', 
+      SENTENCE >= 240 ~ 'at least 240', 
+      SENTENCE >= 180 ~ 'at least 180', 
+      SENTENCE >= 120 ~ 'at least 120', 
+      SENTENCE >= 96 ~ 'at least 96', 
+      SENTENCE >= 72 ~ 'at least 72', 
+      SENTENCE >= 48 ~ 'at least 48', 
+      SENTENCE >= 24 ~ 'at least 24', 
+      SENTENCE >= 12 ~ 'at least 12', 
+      SENTENCE >= 6 ~ 'at least 6', 
+      SENTENCE >= 1 ~ 'at least 1', 
+      SENTENCE >= 0.03 ~ 'at least 0.03'
+    ))
+
+thresholds <- c(0.03, 1, 6, 12, 24, 48, 72, 96, 120, 240, 300, 360, 420, 480, 540, 600, 720, 840, 960, 1080)
+
+## set white as base level
+races.abbr <- c('white', 'black')
+races <- c('white', 'black')
+df$race <- factor(df$RACE, labels = races)
+
+outcomes <- c('sentence.levels', 'SENTENCE')
+predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL','YR2001', 'YR2002', 'YR2003', 'YR2004', 'YR2005', 'YR2006', 'YR2007', 'YR2008', 'PRIM_OFFENSE', 'race')
+
+df <- na.omit(df[, c(outcomes, predictors)])
+```
+
+
+
+```{r}
+###############
+## functions ##
+###############
+
+odds.to.mean <- function(x){ x / (x + 1) }
+
+mean.to.odds <- function(x){ x / (1 - x) }
+
+## simulate posterior of fitted values for data matrix X
+##   using samples from coefficient posterior
+
+#QUESTION: What are the beta.sims and how are they computed? 
+logit.sims.predict <- function(X, beta.sims){
+  as.matrix(1 / (1 + exp(-(X %*% beta.sims))))
+} 
+
+#QUESTION: I know that these confidence intervals are created using a Monte Carlo procedure (KLM p. 11), but I'm not clear why the randomness comes in when it does. 
+logit.sims.predict.chunked <- function(X, beta.sims, chunk.size = 100){
+  if (ncol(beta.sims) %% chunk.size != 0){
+    stop('# simulated coefficient draws is not evenly divisible by chunk size')
+  }
+  out <- llply( #applies the anonymous function to each element of the sequence
+    seq(1, ncol(beta.sims), chunk.size),
+    function(chunk.start){
+      chunk.ind <- chunk.start + 0:(chunk.size - 1) #get indices of items in the chunk 
+      #put some logit transformation of those values into a matrix 
+      as.matrix(1 / (1 + exp(-(X %*% beta.sims[,chunk.ind])))) 
+    })
+  out <- do.call(cbind, out) 
+  return(out) 
+}
+
+logit.sims.predictmean.chunked <- function(X, beta.sims, chunk.size = 100){
+  if (ncol(beta.sims) %% chunk.size != 0){
+    stop('# simulated coefficient draws is not evenly divisible by chunk size')
+  }
+  out <- llply(
+    seq(1, ncol(beta.sims), chunk.size),
+    function(chunk.start){
+      chunk.ind <- chunk.start + 0:(chunk.size - 1)
+      colMeans(as.matrix(1 / (1 + exp(-(X %*% beta.sims[,chunk.ind])))))
+    })
+  out <- unlist(out)
+  return(out)
+}
+
+## adapted from sandwich::estfun
+# https://www.rdocumentation.org/packages/sandwich/versions/3.0-1/topics/estfun 
+estfun.speedglm <- function(mod, y, X){
+  mu.eta <- mod$family$mu.eta #QUESTION: What is the function that we're using for this model? 
+  linkinv <- mod$family$linkinv #inverse link function of the glm
+  variance <- mod$family$variance
+  eta <- as.numeric(X %*% coefficients(mod)) #QUESTION: What is eta? 
+  mu.eta.val <- mu.eta(eta)
+  mu <- linkinv(eta)
+  residuals <- (y - mu) / mu.eta.val
+  weights <- mu.eta.val^2 / variance(mu)
+  estfun <- residuals * weights * X #QUESTION: What's the meaning of this quantity? 
+  return(estfun) 
+}
+
+## adapted from sandwich::estfun
+#from sandwich documentation: "The meat of a clustered sandwich estimator is the cross product of the clusterwise summed estimating functions" (23)
+#used for estimating the covariance matrix to get robust standard errors
+
+meatCL.speedglm <- function(mod, cluster, y,  X, type = 'HC0'){
+  if (is.list(mod) && !is.null(mod$na.action)) 
+    class(mod$na.action) <- "omit"
+  ef <- estfun.speedglm(mod, y, X)
+  k <- NCOL(ef) #number of parameters in glm model 
+  n <- NROW(ef) #number of observations
+  rval <- matrix(0, nrow = k, ncol = k, dimnames = list(colnames(ef),
+                                                        colnames(ef)))
+  if (is.null(cluster))
+    cluster <- attr(mod, "cluster")
+  if (is.null(cluster))
+    cluster <- 1L:n
+  cluster <- as.data.frame(cluster)
+  if (NROW(cluster) != n)
+    stop("number of observations in 'cluster' and 'estfun()' do not match")
+  p <- NCOL(cluster)
+  if (p > 1L) { #if there are more than 1 columns 
+    #get all possible subsets of  {1, 2, ..., p}. cl[,i] returns a vector containing the ith subset
+    cl <- lapply(1L:p, function(i) combn(1L:p, i, simplify = FALSE)) 
+    cl <- unlist(cl, recursive = FALSE)
+    #QUESTION: What is this the sign of?  
+    sign <- sapply(cl, function(i) (-1L)^(length(i) + 1L)) 
+    for (i in (p + 1L):length(cl)) {
+      cluster <- cbind(cluster, Reduce(paste0, cluster[, cl[[i]]]))
+    }
+  }
+  else {
+    cl <- list(1)
+    sign <- 1
+  }
+  g <- sapply(1L:length(cl), function(i) { #sapply returns output of arg2(arg1) in a matrix 
+    if (is.factor(cluster[[i]])) {
+      length(levels(cluster[[i]]))
+    }
+    else {
+      length(unique(cluster[[i]]))
+    }
+  })
+  gmin <- min(g[1L:p])
+  if (FALSE)
+    g[] <- gmin
+  type <- match.arg(type, c("HC", "HC0", "HC1"))
+  if (type == "HC")
+    type <- "HC0"
+  for (i in 1L:length(cl)) {
+    efi <- ef
+    adj <- g[i]/(g[i] - 1L)
+    efi <- if (g[i] < n)
+             apply(efi, 2L, tapply, cluster[[i]], sum)
+    else efi
+    rval <- rval + sign[i] * adj * crossprod(efi)/n
+  }
+  if (type == "HC1")
+    rval <- (n - 1L)/(n - k) * rval
+  return(rval) 
+}
+
+## adapted from sandwich::estfun 
+#QUESTION: How is this different from estfun.speedglm beginning on line 190? 
+estfun.speedglm <- function(mod, y, X){
+  mu.eta <- mod$family$mu.eta
+  linkinv <- mod$family$linkinv
+  variance <- mod$family$variance
+  eta <- as.numeric(X %*% coefficients(mod))
+  mu.eta.val <- mu.eta(eta)
+  mu <- linkinv(eta)
+  residuals <- (y - mu) / mu.eta.val
+  weights <- mu.eta.val^2 / variance(mu)
+  estfun <- residuals * weights * X
+  return(estfun)
+}
+
+## adapted from sandwich::estfun
+vcovCL.speedglm <- function(mod, y, X, cluster = NULL,
+                            sandwich = TRUE, fix = FALSE
+                            ){
+  rval <- meatCL.speedglm(mod, cluster = cluster, y, X)
+  if (sandwich){
+    bread. <- sandwich:::bread(mod)
+    meat. <- rval
+    n <- length(y)
+    rval <- 1/n * (bread. %*% meat. %*% bread.)
+  }
+  if (fix && any((eig <- eigen(rval, symmetric = TRUE))$values <
+                                                        0)) {
+    eig$values <- pmax(eig$values, 0)
+    rval <- crossprod(sqrt(eig$values) * t(eig$vectors))
+  }
+  return(rval)
+}
+
+compute.bounds.ci.from.samples <- function(min.stars, max.stars, alpha){
+  sol = tryCatch(
+  {
+    # https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/optim 
+    optim( #first arg = vector of params over which to optimize fn
+      unname(quantile(max.stars, alpha + (1-alpha)/2)), #upper end of the CI with sig level alpha 
+      fn = function (cihi){
+        x = min.stars
+        x[max.stars > cihi] = min(x)
+        cilo = quantile(x, 1 - alpha)
+        return(cihi - cilo)
+      },
+      lower = quantile(max.stars, alpha),
+      upper = quantile(max.stars, alpha + (1-alpha)/2),
+      method = 'L-BFGS-B'
+    )
+  },
+  error = function(e){
+    NULL
+  })
+  if (!is.null(sol)){
+    return(c(
+      min.cilo = sol$par - sol$value, 
+      max.cihi = sol$par
+    ))
+  } else {
+    warning('caught error in HPD computation, returning conservative CI')
+    return(c(
+      min.cilo = quantile(min.stars, (1-alpha)/2, na.rm=TRUE),
+      max.cihi = quantile(max.stars, alpha + (1-alpha)/2, na.rm=TRUE)
+    ))
+  }
+}
+```
+
+
+```{r}
+###########################
+## create model matrices ##
+###########################
+
+### model formulas ###
+
+## for use of force models
+formula.base <- formula(~ race)
+
+### model matrices for running models ###p
+
+X.base <- sparse.model.matrix(formula.base, d) 
+#dim(X.base) #2874532 rows, 2 cols
+#1st column is column of 1s, 2nd column is race data 
+
+### model matrices for ate ###
+
+## set all encounters to a particular race
+d.setDwhite <- df; d.setDwhite$race <- factor('white', levels = races)
+d.setDblack <- df; d.setDblack$race <- factor('black', levels = races)
+
+## set race to white for all encounters
+## note that in base specification, all encounters belong to the same
+##   covariate strata so we can do interpretion with just one obs
+# QUESTION: Why do we use 
+X.base.setDwhite <- sparse.model.matrix(formula.base,
+                                        d.setDwhite[1, , drop = FALSE],
+                                        drop.unused.levels = FALSE
+                                        )
+
+## set race to black for all encounters
+X.base.setDblack <- sparse.model.matrix(formula.base,
+                                        d.setDblack[1, , drop = FALSE],
+                                        drop.unused.levels = FALSE
+                                        )
+
+
+
+### model matrices for att ###
+
+## avg effect of black (vs white) in black encounters
+Xblack.base.setDwhite <- X.base.setDwhite
+Xblack.base.setDblack <- X.base.setDblack
+
+### cleanup ###
+rm(d.setDwhite, d.setDblack)
+```
+
+```{r}
+setwd("/Users/abbysteckel/Desktop/S&DS_491/Sentencing_Data/")
+########################
+## run correct models ##
+########################
+
+## predicted use of varying force against various racial groups, no covariates
+if (!file.exists('mods_base_correct_blackwhite_sentencing.rds')){
+  mods.base.correct <- lapply(
+    1:length(thresholds),  # sentence thresholds, e.g. 1 = 'at least 0.03'; 20 = 'at least 1080' 
+    function(thresh_index){
+      cat(rep('=', 80), '\nbase model, threshold = ', thresh_index,
+          ' (', sentence.levels[thresh_index], ')\n\n', sep = '')
+      mod <- speedglm.wfit(y = df$SENTENCE >= thresholds[thresh_index], #indictor of whether force exceeded the given threshold
+                           X = X.base,
+                           family = binomial(link = 'logit'),
+                           sparse = TRUE,
+                           trace = TRUE
+                           )
+      vcovCL <- vcovCL.speedglm(mod,
+                                df$SENTENCE >= thresholds[thresh_index], 
+                                X.base,
+                                cluster = df$PRIM_OFFENSE #NOT SURE IF THIS IS APPROPRIATE VARIABLE TO CLUSTER ON. KLM USED POLICE PRECINCT 
+                                )
+      return(list(thresh = sentence.levels[thresh_index], mod = mod, vcovCL = vcovCL)) 
+    })
+  saveRDS(mods.base.correct, 'mods_base_correct_blackwhite_sentencing.rds')
+} else {
+  mods.base.correct <- readRDS('mods_base_correct_blackwhite_sentencing.rds')
+}
+
+mods.base.correct #QUESTION: Do the model coefficients seem to have the appropriate magnitude? I think that they get transformed somehow, but if not, they seem much too small...  
+```
+
+
+```{r}
+####################################
+## bounds and ci for ates / atest ##
+####################################
+
+ndraws <- 5000
+alpha <- .95
+chunk.size <- 100
+results.fname <- sprintf(
+  'bounds_results_n%s_alpha%s_blackwhite_sentencing.rds',
+  ndraws,
+  alpha * 100
+)
+
+rhos <- seq(.01, .99, .01)
+combos <- expand.grid(treat.race = 'black',
+                      mod.type = 'base',
+                      thresh = 1:length(thresholds), 
+                      stringsAsFactors = FALSE
+                      )
+
+if (!file.exists(results.fname)){
+  results <- ddply( # https://www.rdocumentation.org/packages/plyr/versions/1.8.6/topics/ddply 
+    combos, #data frame to be processed 
+    c('treat.race', 'mod.type', 'thresh'), #variables to split dataframe by 
+    function(combo){
+
+      ### prep ###
+
+      treat.race <- combo$treat.race
+      mod.type <- combo$mod.type
+      thresh <- combo$thresh #thresh 1:20 corresponds to index of sentence.levels 
+      cat(sprintf('starting %s %s %s\n', treat.race, mod.type, thresh))
+      if (!mod.type %in% c('base', 'full')){
+        stop('model specification not recognized')
+      }
+      if (!treat.race %in% c('black')){
+        stop('treatment race not recognized')
+      }
+
+      ### intermediate values needed for qoi ### 
+      #QUESTION: What are coef.stars? 
+
+      ## simulated coefficients
+      set.seed(02139)
+      coef.stars <- t(mvrnorm( #mvrnorm() draws a random sample and fills a matrix by column
+        n = ndraws, #number of rows of data 
+        #get parameters from the the model with index equal to the current value of thresh 
+        mu = coef(get(sprintf('mods.%s.correct', mod.type))[[thresh]]$mod), #vector of means of variables 
+        Sigma = get(sprintf('mods.%s.correct', mod.type))[[thresh]]$vcovCL #covariance matrix of the data
+      ))
+
+      ### compute ates ###
+
+      ## predicted probability of white civilian in encounter
+      if (mod.type == 'full'){
+        D0.prob <-
+          1 / (1 + exp(-(as.numeric(X.full.race %*% coef(mod.race.full))))) #QUESTION: Where do X.full.race and mod.race.full come from? 
+      } else {
+        D0.prob <- mean(df$race == 'white')
+      }
+
+      ates.chunks <- llply(
+        seq(1, ndraws, chunk.size),
+        function(chunk.start){
+          cat(sprintf('computing bounds in %s %s %s (draws %s:%s)\n',
+                      treat.race,
+                      mod.type,
+                      thresh,
+                      chunk.start,
+                      chunk.start + chunk.size - 1
+                      ))
+          chunk.ind <- chunk.start + 0:(chunk.size - 1)
+          ## for naive ate, set all encounters to a particular race, then
+          ##   predict use of force in each encounter (row) by coef draw (col)
+          pred.setD1.chunk <- logit.sims.predict(
+            get(sprintf('X.%s.setD%s', mod.type, treat.race)),
+            coef.stars[,chunk.ind]
+          )
+          pred.setD0.chunk <- logit.sims.predict(
+            get(sprintf('X.%s.setDwhite', mod.type)),
+            coef.stars[,chunk.ind]
+          )
+          ## for each encounter x coef draw, difference in predicted sentence length 
+          ##   when setting D=1 vs D=0
+          ates.naive.chunk <- colMeans(pred.setD1.chunk - pred.setD0.chunk)
+          ## ates bounds and atest at various rhos (rows) and coef samples (cols)
+          ## note: this duplicates vector D0.prob over columns of pred.setD0
+          ates.bounds.lo.chunk <- laply(rhos, function(rho){
+            ates.naive.chunk + colMeans(rho * pred.setD0.chunk * (1 - D0.prob))
+          })
+          ates.bounds.hi.chunk <- ates.bounds.lo.chunk +
+            laply(rhos, function(rho){
+              colMeans(
+                rho / (1 - rho) * D0.prob * (
+                  pred.setD1.chunk -
+                    pmax(1 + pred.setD1.chunk / rho - 1 / rho, 0)
+                )
+              )
+            })
+          ## output
+          return(list(ates.naive = ates.naive.chunk,
+                      ates.bounds.lo = ates.bounds.lo.chunk,
+                      ates.bounds.hi = ates.bounds.hi.chunk
+                      )
+                 )
+        })
+
+      ates.naive <- unlist(lapply(ates.chunks, function(x) x$ates.naive))
+      ates.bounds.lo <- do.call(
+        cbind,
+        lapply(ates.chunks, function(x) x$ates.bounds.lo)
+      )
+      ates.bounds.hi <- do.call(
+        cbind,
+        lapply(ates.chunks, function(x) x$ates.bounds.hi)
+      )
+      rm(ates.chunks)
+
+      ### compute atest ###
+
+      ## for naive atest (minority encounters with real race, vs set to white)
+      ## we never need the encounter-wise values for atest, so just store
+      ## mean values (over all minority encounters) for each coef draw
+      predD1.setD1 <- logit.sims.predictmean.chunked(
+        get(sprintf('X%s.%s.setD%s', treat.race, mod.type, treat.race)),
+        coef.stars,
+        chunk.size = 100
+      )
+      predD1.setD0 <- logit.sims.predictmean.chunked(
+        get(sprintf('X%s.%s.setDwhite', treat.race, mod.type)),
+        coef.stars,
+        chunk.size = 100
+      )
+
+      ## for each coef draw, difference in mean predicted force
+      ##   when setting D=1 vs D=0
+      atest.naive <- predD1.setD1 - predD1.setD0
+
+      atest <- laply(rhos, function(rho){
+        atest.naive + rho * predD1.setD0
+      })
+
+      ### output ###
+
+      ## ates
+      ates.naive.est <- mean(ates.naive)
+      ates.naive.ci <- unname(quantile(
+        ates.naive,
+        c((1 - alpha) / 2, (alpha + 1) / 2)
+      ))
+      ates.bounds.est <- cbind(min = rowMeans(ates.bounds.lo),
+                               max = rowMeans(ates.bounds.hi)
+                               )
+      ates.bounds.ci <- ldply(seq_along(rhos),
+                              function(i){
+                                compute.bounds.ci.from.samples(
+                                  ates.bounds.lo[i,],
+                                  ates.bounds.hi[i,],
+                                  alpha
+                                )
+                              })
+
+      ## atest
+      atest.naive.est <- mean(atest.naive)
+      atest.naive.ci <- unname(quantile(
+        atest.naive,
+        c((1 - alpha) / 2, (alpha + 1) / 2)
+      ))
+      atest.est <- rowMeans(atest)
+      atest.ci <- adply(atest,
+                        1,
+                        function(x){
+                          out <- quantile(
+                            x,
+                            c((1 - alpha) / 2, (alpha + 1) / 2)
+                          )
+                          names(out) <- c('cilo', 'cihi')
+                          return(out)
+                        })
+
+      cat(sprintf('finishing %s %s %s\n', treat.race, mod.type, thresh))
+
+      return(rbind.fill(
+        data.frame(qoi = 'ates',
+                   rho = c(0, rhos),
+                   est = c(ates.naive.est, rep(NA, length(rhos))),
+                   est.cilo = c(ates.naive.ci[1], rep(NA, length(rhos))),
+                   est.cihi = c(ates.naive.ci[2], rep(NA, length(rhos))),
+                   min = c(NA, ates.bounds.est[, 'min']),
+                   max = c(NA, ates.bounds.est[, 'max']),
+                   min.cilo = c(NA, ates.bounds.ci[, 'min.cilo']),
+                   max.cihi = c(NA, ates.bounds.ci[, 'max.cihi'])
+                   ),
+        data.frame(qoi = 'atest',
+                   rho = c(0, rhos),
+                   est = c(atest.naive.est, atest.est),
+                   est.cilo = c(atest.naive.ci[1], atest.ci[,'cilo']),
+                   est.cihi = c(atest.naive.ci[2], atest.ci[,'cihi'])
+                   )
+      ))
+
+    },
+    .parallel = TRUE,
+    .paropts =list(.export = c('mvrnorm', ls()[grep('^(X|mods)', ls())]))
+  )
+  results$rho <- round(results$rho, 2)  # fix minor floating point issue
+  results$n.black <- sum(df$race == 'black')
+  saveRDS(results, results.fname)
+} else {
+  results <- readRDS(results.fname)
+}
+
+#dim(results) # 100 values of rho x 20 levels of force x 2 estimands = 4000 rows 
+
+results[1:100, ] 
+#my results for threshold 1 are off - the lower and upper bounds are identical 
+#lower and upper bounds begin to differ at threshold 2. WHAT'S UP WITH THRESH = 1? 
+```
+
+### Are these results consistent with expectations for rho = 0 and rho = 1? 
+```{r}
+names(results)
+mean(results[results$rho == 0, "est"]) #0.0632 
+mean(results[results$rho == 0.99, "est"], na.rm=TRUE) #0.319
+```
+
