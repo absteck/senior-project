@@ -1,7 +1,7 @@
 ---
 title: "KLM Bounds"
 author: "Abby Steckel"
-date: "10/17/2021"
+date: "10/18/2021"
 output:
   word_document: default
   html_document: default
@@ -32,7 +32,10 @@ Naive estimator $\Delta = E[Y_i|D_i = 1, M_i = 1] - E[Y_i|D_i = 0, M_i = 1]$
 KLM observe that the naive estimator is the weighted combination of average outcomes in the first three of the four principal strata: (1) always-convict (situations where both Black and white people would have been convicted), (2) anti-minority convictions (situations where the person wouldn't have been convicted, or would have received a less severe conviction, if they were white), (3) anti-white convictions, and (4) never-convict. 
 \[
 \begin{align*}
-\Delta = E[Y_i|D_i = 1, M_i(1) = 1, M_i(0) = 1] P(M_i(0) = 1 | M_i(1) = 1, D_i = 1) + E[Y_i|D_i = 1, M_i(1) = 1, M_i(0) = 0] P(M_i(0) = 0 | M_i(1) = 1, D_i = 1) - E[Y_i|D_i = 0, M_i(0) = 0, M_i(1) = 1] P(M_i(1) = 1 | M_i(0) = 0, D_i = 0) - E[Y_i|D_i = 0, M_i(0) = 0, M_i(1) = 0] P(M_i(1) = 0 | M_i(0) = 0, D_i = 0)
+\Delta = E[Y_i|D_i = 1, M_i(1) = 1, M_i(0) = 1] P(M_i(0) = 1 | M_i(1) = 1, D_i = 1) + \\
+E[Y_i|D_i = 1, M_i(1) = 1, M_i(0) = 0] P(M_i(0) = 0 | M_i(1) = 1, D_i = 1) - \\
+E[Y_i|D_i = 0, M_i(0) = 0, M_i(1) = 1] P(M_i(1) = 1 | M_i(0) = 0, D_i = 0) - \\
+E[Y_i|D_i = 0, M_i(0) = 0, M_i(1) = 0] P(M_i(1) = 0 | M_i(0) = 0, D_i = 0)
 \end{align*}
 \]
 
@@ -343,7 +346,7 @@ formula.base <- formula(~ race)
 
 ### model matrices for running models ###p
 
-X.base <- sparse.model.matrix(formula.base, d) 
+X.base <- sparse.model.matrix(formula.base, df) 
 #dim(X.base) #2874532 rows, 2 cols
 #1st column is column of 1s, 2nd column is race data 
 
@@ -412,6 +415,7 @@ if (!file.exists('mods_base_correct_blackwhite_sentencing.rds')){
 }
 
 mods.base.correct #QUESTION: Do the model coefficients seem to have the appropriate magnitude? I think that they get transformed somehow, but if not, they seem much too small...  
+
 ```
 
 
@@ -631,14 +635,14 @@ if (!file.exists(results.fname)){
 #dim(results) # 100 values of rho x 20 levels of force x 2 estimands = 4000 rows 
 
 results[1:100, ] 
-#my results for threshold 1 are off - the lower and upper bounds are identical 
-#lower and upper bounds begin to differ at threshold 2. WHAT'S UP WITH THRESH = 1? 
+#PROBLEM: when thresh = 1, the lower and upper CI bounds are identical. What's going on here?? 
 ```
 
 ### Are these results consistent with expectations for rho = 0 and rho = 1? 
 ```{r}
 names(results)
 mean(results[results$rho == 0, "est"]) #0.0632 
+#QUESTION: Can I compute the expected result when rho = 0 just using the naive difference-in-means? If so, how do I get the units to match up with the above estimate? 
 mean(results[results$rho == 0.99, "est"], na.rm=TRUE) #0.319
 ```
 
