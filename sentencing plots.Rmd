@@ -1,11 +1,22 @@
 ---
 title: "KLM Plots"
 author: "Abby Steckel"
-date: "10/17/2021"
-output: html_document
+date: "10/18/2021"
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r}
+## data manipulation
+library(plyr)
+library(reshape2)
+
+## output
+library(ggplot2)
+library(xtable)
+
+#packages for loading in compressed data 
 library(R.utils)
 library(tidyverse)
 combine <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
@@ -72,14 +83,6 @@ thresholds <- c(0.03, 1, 6, 12, 24, 48, 72, 96, 120, 240, 300, 360, 420, 480, 54
 races.abbr <- c('white', 'black')
 races <- c('white', 'black')
 df$race <- factor(df$RACE, labels = races)
-
-## data manipulation
-library(plyr)
-library(reshape2)
-
-## output
-library(ggplot2)
-library(xtable)
 
 ##########
 ## prep ##
@@ -255,7 +258,7 @@ excess.base <-
   cbind('naive' = naive.excess, 'bias-corrected' = biascorrect.excess)
 excess.base
 
-#WHOA THE ABOVE BIAS-CORRECTED ATES ARE WAY TOO BIG 
+#PROBLEM: the bias-corrected ATEs are way too big  
 ```
 
 
@@ -263,18 +266,18 @@ excess.base
 #################
 ## plot bounds ##
 #################
-#NO ATE IS SHOWING UP FOR thresh = 1
+#PROBLEM: bounds for thresh = 1 aren't showing up on the graph because the upper and lower bounds are exactly equal 
 sort(table(df$sentence.levels)) #most frequent sentence is at least 24, i = 5. next is at least 12, i = 4. 
 #when I set thresh = 5,the max y val is around 300. for i = 4, it's 250. least frequent sentence is at least 720, i = 18. WHY DO MAX Ys DIFFER SO MUCH? 
 thresh <- 1
 
-#DOES IT MAKE SENSE THAT ATT > ATE FOR LOWER-LEVEL CONVICTIONS? IN THAT THOSE ARE THE CRIMES WHERE POCS WOULDN'T HAVE BEEN CONVICTED AT ALL IF THEY WERE WHITE, WHILE WHITE PEOPLE WHO GET CONVICTED HAVE TO DO SOMETHING VERY DISTASTEFUL? 
+#QUESTION: What's the expected relationship between ATE_M=1 and ATT_M=1?  
 
-#EXPLORING VALUES OF min.cilo and max.cihi
-min(results[results$thresh >= thresh & results$qoi == 'ates',"min.cilo"])
-max(results[results$thresh >= thresh & results$qoi == 'ates',"min.cilo"])*nrow(df)/1000
+#checking values of min.cilo and max.cihi
+min(results[results$thresh >= thresh & results$qoi == 'ates',"min.cilo"], na.rm = TRUE)
+max(results[results$thresh >= thresh & results$qoi == 'ates',"min.cilo"], na.rm=TRUE)
 
-#SHOULD THIS BE results$thresh >= thresh SO AS TO INCLUDE ALL OBSERVATIONS? 
+#should this be results$thresh >= thresh so as to include all observations with convictions above the threshold? 
 ggplot(results[results$thresh == thresh &
                  results$qoi == 'ates',
                ],
@@ -378,7 +381,220 @@ ggplot(results[results$thresh == thresh &
   theme(legend.text = element_text(size = 10), axis.title.y = element_text(size=10), axis.title.x = element_text(size=10))
 #ggsave('pics/bounds_hands_correct_blackwhite.pdf', width = 13, height = 6)
 
-#results[1:100, ] #compared to KLM, there's a more dramatic difference between CI when rho = 0 and when rho = 0.99. IS THE WONKY GRAPH DUE TO A SCALING ISSUE? 
+#results[1:100, ] #Problem: compared to KLM, there's a more dramatic difference between CI when rho = 0 and when rho = 0.99.
 #sum(table(df$sentence.levels))
 ```
+
+```{r}
+thresh <- 5
+
+ggplot(results[results$thresh == thresh &
+                 results$qoi == 'ates',
+               ],
+       aes(x = rho) #x-axis is value of rho 
+       ) +
+  geom_hline(yintercept = 0, #draw x-axis
+             ) + 
+  geom_ribbon(aes(ymin = min.cilo * nrow(df) / 1000, 
+                  ymax = max.cihi * nrow(df) / 1000
+                  ),
+              fill = paste0(red, '80')
+              ) +
+  geom_ribbon(aes(ymin = min * nrow(df) / 1000,
+                  ymax = max * nrow(df) / 1000,
+                  fill = 'TE_S'
+                  )
+              ) +
+  geom_line(aes(y = est * n.minority / 1000,
+                linetype = 'TE_ST',
+                ),
+            results[results$thresh == thresh &
+                      results$qoi == 'atest',
+                    ],
+            color = 'black',
+            size = 1
+            ) +
+  geom_point(aes(y = est * nrow(df) / 1000,
+                 color = 'naive'
+                 ),
+             data = results[results$thresh == thresh & results$rho == 0,],
+             color = blue,
+             size = 2
+             ) +
+  geom_errorbar(aes(ymin = est.cilo * nrow(df) / 1000,
+                    ymax = est.cihi * nrow(df) / 1000,
+                    color = 'naive'
+                    ),
+                data = results[results$thresh == thresh & results$rho == 0,],
+                width = 1,
+                size = 1
+                ) +
+  geom_vline(aes(xintercept = rho),
+             data = annotations[annotations$treat.race == 'black',],
+             linetype = 'dashed',
+             size = .25
+             ) +
+  geom_text(aes(label = text),
+            data = annotations[annotations$treat.race == 'black',],
+            y = 1100,
+            size = 3,
+            hjust = 1,
+            vjust = -.5,
+            angle = 90
+            ) +
+  theme(legend.position = 'bottom',
+        legend.key.size = unit(1, 'cm'),
+        legend.spacing.x = unit(.05, 'cm'),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(linetype = 'dashed')
+        ) +
+  guides(color = guide_legend(title = NULL, order = 1),
+         linetype = guide_legend(title = NULL, order = 2),
+         fill = guide_legend(title = NULL, order = 3)
+         ) +
+  scale_color_manual(
+    name = 'x',
+    values = c('naive' = blue,
+               'TE_S' = NA,
+               'TE_ST' = NA
+               ),
+    labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{stopped}'),
+               'TE_S' = expression('ATE'['M=1'] %*% ' #{stopped}'),
+               'TE_ST' = expression('ATT'['M=1'] %*% ' #{stopped minorities}')
+               )
+  ) +
+  scale_fill_manual(name = 'x',
+                        values = c('naive' = NA,
+                                   'TE_S' = red,
+                                   'TE_ST' = NA
+                                   ),
+    labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{convicted}'),
+               'TE_S' = expression('ATE'['M=1'] %*% ' #{convicted}'),
+               'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
+               )
+    ) +
+  scale_linetype_manual(
+    name = 'x',
+    values = c('naive' = NA,
+               'TE_S' = NA,
+               'TE_ST' = 'dashed'
+               ),
+    labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{convicted}'),
+               'TE_S' = expression('ATE'['M=1'] %*% ' #{convicted}'),
+               'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
+               )
+  ) +
+  ylab('Civilians subject to racially\ndiscriminatory sentence length\n(thousands)\n') +
+  xlab('\nProportion of racially discriminatory stops') +
+  xlim(0, 1) +
+  facet_grid(. ~ race.label) +
+  theme(legend.text = element_text(size = 10), axis.title.y = element_text(size=10), axis.title.x = element_text(size=10))
+```
+
+```{r}
+thresh <- 20
+
+ggplot(results[results$thresh == thresh &
+                 results$qoi == 'ates',
+               ],
+       aes(x = rho) #x-axis is value of rho 
+       ) +
+  geom_hline(yintercept = 0, #draw x-axis
+             ) + 
+  geom_ribbon(aes(ymin = min.cilo * nrow(df) / 1000, 
+                  ymax = max.cihi * nrow(df) / 1000
+                  ),
+              fill = paste0(red, '80')
+              ) +
+  geom_ribbon(aes(ymin = min * nrow(df) / 1000,
+                  ymax = max * nrow(df) / 1000,
+                  fill = 'TE_S'
+                  )
+              ) +
+  geom_line(aes(y = est * n.minority / 1000,
+                linetype = 'TE_ST',
+                ),
+            results[results$thresh == thresh &
+                      results$qoi == 'atest',
+                    ],
+            color = 'black',
+            size = 1
+            ) +
+  geom_point(aes(y = est * nrow(df) / 1000,
+                 color = 'naive'
+                 ),
+             data = results[results$thresh == thresh & results$rho == 0,],
+             color = blue,
+             size = 2
+             ) +
+  geom_errorbar(aes(ymin = est.cilo * nrow(df) / 1000,
+                    ymax = est.cihi * nrow(df) / 1000,
+                    color = 'naive'
+                    ),
+                data = results[results$thresh == thresh & results$rho == 0,],
+                width = 1,
+                size = 1
+                ) +
+  geom_vline(aes(xintercept = rho),
+             data = annotations[annotations$treat.race == 'black',],
+             linetype = 'dashed',
+             size = .25
+             ) +
+  geom_text(aes(label = text),
+            data = annotations[annotations$treat.race == 'black',],
+            y = 1100,
+            size = 3,
+            hjust = 1,
+            vjust = -.5,
+            angle = 90
+            ) +
+  theme(legend.position = 'bottom',
+        legend.key.size = unit(1, 'cm'),
+        legend.spacing.x = unit(.05, 'cm'),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(linetype = 'dashed')
+        ) +
+  guides(color = guide_legend(title = NULL, order = 1),
+         linetype = guide_legend(title = NULL, order = 2),
+         fill = guide_legend(title = NULL, order = 3)
+         ) +
+  scale_color_manual(
+    name = 'x',
+    values = c('naive' = blue,
+               'TE_S' = NA,
+               'TE_ST' = NA
+               ),
+    labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{stopped}'),
+               'TE_S' = expression('ATE'['M=1'] %*% ' #{stopped}'),
+               'TE_ST' = expression('ATT'['M=1'] %*% ' #{stopped minorities}')
+               )
+  ) +
+  scale_fill_manual(name = 'x',
+                        values = c('naive' = NA,
+                                   'TE_S' = red,
+                                   'TE_ST' = NA
+                                   ),
+    labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{convicted}'),
+               'TE_S' = expression('ATE'['M=1'] %*% ' #{convicted}'),
+               'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
+               )
+    ) +
+  scale_linetype_manual(
+    name = 'x',
+    values = c('naive' = NA,
+               'TE_S' = NA,
+               'TE_ST' = 'dashed'
+               ),
+    labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{convicted}'),
+               'TE_S' = expression('ATE'['M=1'] %*% ' #{convicted}'),
+               'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
+               )
+  ) +
+  ylab('Civilians subject to racially\ndiscriminatory sentence length\n(thousands)\n') +
+  xlab('\nProportion of racially discriminatory stops') +
+  xlim(0, 1) +
+  facet_grid(. ~ race.label) +
+  theme(legend.text = element_text(size = 10), axis.title.y = element_text(size=10), axis.title.x = element_text(size=10))
+```
+
 
