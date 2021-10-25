@@ -1,7 +1,7 @@
 ---
 title: "KLM Plots"
 author: "Abby Steckel"
-date: "10/18/2021"
+date: "10/24/2021"
 output:
   word_document: default
   html_document: default
@@ -26,63 +26,34 @@ combine <- na_if(combine, "")
 df <- combine[combine$RACE %in% c("black", "white"), ]
 df$RACE <- ifelse(df$RACE == "black", 1, 0)
 
-#create sentence levels  
-sentence.levels <- c(
-  'at least 0.03',
-  'at least 1',
-  'at least 6',
-  'at least 12',
-  'at least 24', 
-  'at least 48', 
-  'at least 72', 
-  'at least 96', 
-  'at least 120', 
-  'at least 180', 
-  'at least 240', 
-  'at least 300', 
-  'at least 360', 
-  'at least 420', 
-  'at least 480', 
-  'at least 540', 
-  'at least 600', 
-  'at least 720', 
-  'at least 840', 
-  'at least 960', 
-  'at least 1080'
-)
-
-#add a categorical sentence levels variable to the df dataframe 
-df <- df %>% mutate ( # https://dplyr.tidyverse.org/reference/mutate.html
-    sentence.levels = case_when( # https://dplyr.tidyverse.org/reference/case_when.html 
-      SENTENCE >= 1080 ~ 'at least 1080',
-      SENTENCE >= 960 ~ 'at least 960',
-      SENTENCE >= 840 ~ 'at least 840', 
-      SENTENCE >= 720 ~ 'at least 720', 
-      SENTENCE >= 600 ~ 'at least 600', 
-      SENTENCE >= 540 ~ 'at least 540', 
-      SENTENCE >= 480 ~ 'at least 480', 
-      SENTENCE >= 420 ~ 'at least 420', 
-      SENTENCE >= 360 ~ 'at least 360', 
-      SENTENCE >= 300 ~ 'at least 300', 
-      SENTENCE >= 240 ~ 'at least 240', 
-      SENTENCE >= 180 ~ 'at least 180', 
-      SENTENCE >= 120 ~ 'at least 120', 
-      SENTENCE >= 96 ~ 'at least 96', 
-      SENTENCE >= 72 ~ 'at least 72', 
-      SENTENCE >= 48 ~ 'at least 48', 
-      SENTENCE >= 24 ~ 'at least 24', 
-      SENTENCE >= 12 ~ 'at least 12', 
-      SENTENCE >= 6 ~ 'at least 6', 
-      SENTENCE >= 1 ~ 'at least 1', 
-      SENTENCE >= 0.03 ~ 'at least 0.03'
-    ))
-
-thresholds <- c(0.03, 1, 6, 12, 24, 48, 72, 96, 120, 240, 300, 360, 420, 480, 540, 600, 720, 840, 960, 1080)
-
 ## set white as base level
 races.abbr <- c('white', 'black')
 races <- c('white', 'black')
 df$race <- factor(df$RACE, labels = races)
+
+outcome <- c('SENTENCE')
+predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL','YR2001', 'YR2002', 'YR2003', 'YR2004', 'YR2005', 'YR2006', 'YR2007', 'YR2008', 'PRIM_OFFENSE', 'race')
+
+df <- na.omit(df[, c(outcome, predictors)])
+
+#create sentence levels  
+sentence.quartiles <- c(
+  'above third quartile', 
+  'above median', 
+  'above first quartile', 
+  'above 0.03' #DELETE AFTER FIGURING OUT STANDARD ERROR 
+)
+
+#add a categorical sentence levels variable to the df dataframe 
+df <- df %>% mutate ( # https://dplyr.tidyverse.org/reference/mutate.html
+    sentence.quartiles = case_when( # https://dplyr.tidyverse.org/reference/case_when.html 
+      SENTENCE > 72  ~ 'above third quartile', 
+      SENTENCE > 37  ~ 'above median',
+      SENTENCE > 15 ~ 'above first quartile',
+      SENTENCE > 0.03 ~ 'above 0.03' 
+    ))
+
+thresholds <- c(0.03, 15, 37, 72)
 
 ##########
 ## prep ##
@@ -107,8 +78,10 @@ results.fname <- sprintf('bounds_results_n%s_alpha%s_blackwhite_sentencing.rds',
                          )
 setwd("/Users/abbysteckel/Desktop/S&DS_491/Sentencing_Data/")
 results <- readRDS(results.fname) 
-#add column containing the number of black people in the dataset (n = 150372)
+#add column containing the number of black people in the dataset 
 results$n.minority <- sum(df$race == 'black', na.rm = TRUE) 
+
+#results[201:221,] #max does not exactly equal max.cihi, and likewise min does not exactly equal min.cilo, but they are very close 
 ```
 
 
@@ -189,9 +162,9 @@ annotations <- data.frame(treat.race = 'black',
 
 ## labels for plots
 results$thresh.label <- factor(
-  sentence.levels[results$thresh],
-  levels = sentence.levels,
-  labels = gsub('\n', ' ', sentence.levels),
+  sentence.quartiles[results$thresh],
+  levels = sentence.quartiles,
+  labels = gsub('\n', ' ', sentence.quartiles),
   ordered = TRUE
 ) #there are 200 of each threshold label: 100 rho values x 2 treatment effect estimators 
 
@@ -243,8 +216,7 @@ biascorrect.black.base <- results[
 ##naive estimate for black (vs white) x number of black encounters
 naive.black.base$excess <-
   naive.black.base$est * naive.black.base$n.minority
-naive.excess <- ## naive.hispanic.base$excess +
-  naive.black.base$excess
+naive.excess <- naive.black.base$excess
 names(naive.excess) <- naive.black.base$thresh.label
 
 ## bias-corrected atest for black (vs white) x number of black encounters
@@ -258,7 +230,6 @@ excess.base <-
   cbind('naive' = naive.excess, 'bias-corrected' = biascorrect.excess)
 excess.base
 
-#PROBLEM: the bias-corrected ATEs are way too big  
 ```
 
 
@@ -266,16 +237,13 @@ excess.base
 #################
 ## plot bounds ##
 #################
-#PROBLEM: bounds for thresh = 1 aren't showing up on the graph because the upper and lower bounds are exactly equal 
-sort(table(df$sentence.levels)) #most frequent sentence is at least 24, i = 5. next is at least 12, i = 4. 
-#when I set thresh = 5,the max y val is around 300. for i = 4, it's 250. least frequent sentence is at least 720, i = 18. WHY DO MAX Ys DIFFER SO MUCH? 
-thresh <- 1
+sort(table(df$sentence.quartiles))
 
-#QUESTION: What's the expected relationship between ATE_M=1 and ATT_M=1?  
+thresh <- 2
 
 #checking values of min.cilo and max.cihi
 min(results[results$thresh >= thresh & results$qoi == 'ates',"min.cilo"], na.rm = TRUE)
-max(results[results$thresh >= thresh & results$qoi == 'ates',"min.cilo"], na.rm=TRUE)
+max(results[results$thresh >= thresh & results$qoi == 'ates',"max.cihi"], na.rm=TRUE)
 
 #should this be results$thresh >= thresh so as to include all observations with convictions above the threshold? 
 ggplot(results[results$thresh == thresh &
@@ -379,14 +347,23 @@ ggplot(results[results$thresh == thresh &
   xlim(0, 1) +
   facet_grid(. ~ race.label) +
   theme(legend.text = element_text(size = 10), axis.title.y = element_text(size=10), axis.title.x = element_text(size=10))
-#ggsave('pics/bounds_hands_correct_blackwhite.pdf', width = 13, height = 6)
 
-#results[1:100, ] #Problem: compared to KLM, there's a more dramatic difference between CI when rho = 0 and when rho = 0.99.
-#sum(table(df$sentence.levels))
+#QUESTION: Why is the naive (blue) confidence interval so small? 
+
+#QUESTION: Why is there no pink shading? 
+
+#QUESTION: Why are the confidence intervals the same width? 
+
+#QUESTION: How is it possible for the number of civilians subject to racially discriminatory sentence length to exceed n_minority = n_black = 124381? max(results$est) = 0.9808, min(results$est) = 0.0024, so we shouldn't be getting y-values above 124. 
+
+#looks like geom_ribbon multiplies ATE_est * nrow(df) / 1000
+
+
 ```
 
 ```{r}
-thresh <- 5
+#QUESTION: I think this plot should look like my plot for two sentence levels, above or below the median. Why doesn't it match? 
+thresh <- 3
 
 ggplot(results[results$thresh == thresh &
                  results$qoi == 'ates',
@@ -492,7 +469,7 @@ ggplot(results[results$thresh == thresh &
 ```
 
 ```{r}
-thresh <- 20
+thresh <- 4
 
 ggplot(results[results$thresh == thresh &
                  results$qoi == 'ates',
@@ -501,14 +478,14 @@ ggplot(results[results$thresh == thresh &
        ) +
   geom_hline(yintercept = 0, #draw x-axis
              ) + 
-  geom_ribbon(aes(ymin = min.cilo * nrow(df) / 1000, 
+  geom_ribbon(aes(ymin = min.cilo * nrow(df) / 1000,
                   ymax = max.cihi * nrow(df) / 1000
                   ),
-              fill = paste0(red, '80')
+              fill = paste0(red, '80') #this is the lighter shading 
               ) +
   geom_ribbon(aes(ymin = min * nrow(df) / 1000,
                   ymax = max * nrow(df) / 1000,
-                  fill = 'TE_S'
+                  fill = 'TE_S' #this is the darker shading
                   )
               ) +
   geom_line(aes(y = est * n.minority / 1000,
@@ -564,9 +541,9 @@ ggplot(results[results$thresh == thresh &
                'TE_S' = NA,
                'TE_ST' = NA
                ),
-    labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{stopped}'),
-               'TE_S' = expression('ATE'['M=1'] %*% ' #{stopped}'),
-               'TE_ST' = expression('ATT'['M=1'] %*% ' #{stopped minorities}')
+    labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{convicted}'),
+               'TE_S' = expression('ATE'['M=1'] %*% ' #{convicted}'),
+               'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
                )
   ) +
   scale_fill_manual(name = 'x',
