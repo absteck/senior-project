@@ -396,7 +396,7 @@ if (!file.exists('mods_base_correct_blackwhite_sentencing_wrong.rds')){
       vcovCL <- vcovCL.speedglm(mod,
                                 df$SENTENCE > thresholds[thresh_index], 
                                 X.base,
-                                cluster = c(1:nrow(df)) #each observation is a cluster (ie no clustering)
+                                cluster = df$PRIM_OFFENSE #each observation is a cluster (ie no clustering)
                                 )
       std_err <- sqrt(diag(vcovCL)) 
       return(list(thresh = sentence.quartiles[thresh_index], mod = mod, vcovCL = vcovCL, std_err = std_err))
