@@ -1,7 +1,7 @@
 ---
 title: "KLM Plots"
 author: "Abby Steckel"
-date: "10/24/2021"
+date: "10/25/2021"
 output:
   word_document: default
   html_document: default
@@ -72,7 +72,7 @@ mean.to.odds <- function(x){ x / (1 - x) }
 ## bounds results
 ndraws <- 5000
 alpha <- .95 #desired significance level 
-results.fname <- sprintf('bounds_results_n%s_alpha%s_blackwhite_sentencing.rds',
+results.fname <- sprintf('bounds_results_n%s_alpha%s_blackwhite_sentencing.rds', 
                          ndraws,
                          alpha * 100
                          )
@@ -242,10 +242,9 @@ sort(table(df$sentence.quartiles))
 thresh <- 2
 
 #checking values of min.cilo and max.cihi
-min(results[results$thresh >= thresh & results$qoi == 'ates',"min.cilo"], na.rm = TRUE)
-max(results[results$thresh >= thresh & results$qoi == 'ates',"max.cihi"], na.rm=TRUE)
+min(results[results$thresh == thresh & results$qoi == 'ates',"min.cilo"], na.rm = TRUE)
+max(results[results$thresh == thresh & results$qoi == 'ates',"max.cihi"], na.rm=TRUE)
 
-#should this be results$thresh >= thresh so as to include all observations with convictions above the threshold? 
 ggplot(results[results$thresh == thresh &
                  results$qoi == 'ates',
                ],
@@ -342,7 +341,7 @@ ggplot(results[results$thresh == thresh &
                'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
                )
   ) +
-  ylab('Civilians subject to racially\ndiscriminatory sentence length\n(thousands)\n') +
+  ylab('Civilians subject to racially\ndiscriminatory sentence length\n for sentences above the median\n(thousands)\n') +
   xlab('\nProportion of racially discriminatory stops') +
   xlim(0, 1) +
   facet_grid(. ~ race.label) +
@@ -357,12 +356,9 @@ ggplot(results[results$thresh == thresh &
 #QUESTION: How is it possible for the number of civilians subject to racially discriminatory sentence length to exceed n_minority = n_black = 124381? max(results$est) = 0.9808, min(results$est) = 0.0024, so we shouldn't be getting y-values above 124. 
 
 #looks like geom_ribbon multiplies ATE_est * nrow(df) / 1000
-
-
 ```
 
 ```{r}
-#QUESTION: I think this plot should look like my plot for two sentence levels, above or below the median. Why doesn't it match? 
 thresh <- 3
 
 ggplot(results[results$thresh == thresh &
@@ -461,7 +457,7 @@ ggplot(results[results$thresh == thresh &
                'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
                )
   ) +
-  ylab('Civilians subject to racially\ndiscriminatory sentence length\n(thousands)\n') +
+  ylab('Civilians subject to racially\ndiscriminatory sentence length\n for sentences above the 1st quartile \n (thousands)\n') +
   xlab('\nProportion of racially discriminatory stops') +
   xlim(0, 1) +
   facet_grid(. ~ race.label) +
@@ -469,7 +465,7 @@ ggplot(results[results$thresh == thresh &
 ```
 
 ```{r}
-thresh <- 4
+thresh <- 1
 
 ggplot(results[results$thresh == thresh &
                  results$qoi == 'ates',
@@ -567,7 +563,7 @@ ggplot(results[results$thresh == thresh &
                'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
                )
   ) +
-  ylab('Civilians subject to racially\ndiscriminatory sentence length\n(thousands)\n') +
+  ylab('Civilians subject to racially\ndiscriminatory sentence length\nfor sentences above the 3rd quartile\n(thousands)\n') +
   xlab('\nProportion of racially discriminatory stops') +
   xlim(0, 1) +
   facet_grid(. ~ race.label) +
