@@ -7,7 +7,7 @@ output:
   html_document: default
 ---
 
-*I am using this file to test whether the change in the shape of my confidence intervals is related to changing the way that I coded the sentence.quantiles so that people fall into the category of the highest threshold they pass, instead of the lowest.*
+*I am using this file to investigate how my confidence intervals change when I cluster on primary offense level, holding all else equal with "sentencing bounds.Rmd."*
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -82,10 +82,10 @@ blue <- '#325585'
 
 #create sentence levels  
 sentence.quartiles <- c(
-  'above 0.03',
-  'above first quartile',
+  'above third quartile',
   'above median', 
-  'above third quartile'
+  'above first quartile',
+  'above 0.03'
 )
 
 ## set white as base treatment level
@@ -103,13 +103,13 @@ quantile(df$SENTENCE) #first quartile: 15. median: 37. third quartile: 72
 #add a categorical sentence quartiles variable to the dataframe 
 df <- df %>% mutate ( # https://dplyr.tidyverse.org/reference/mutate.html
     sentence.quartiles = case_when( # https://dplyr.tidyverse.org/reference/case_when.html 
-      SENTENCE > 0.03  ~ 'above 0.03', 
-      SENTENCE > 15  ~ 'above first quartile',
+      SENTENCE > 72 ~ 'above third quartile',
       SENTENCE > 37 ~ 'above median',
-      SENTENCE > 72 ~ 'above third quartile' 
+      SENTENCE > 15  ~ 'above first quartile',
+      SENTENCE > 0.03  ~ 'above 0.03'
     ))
 
-thresholds <- c(0.03, 15, 37, 72) 
+thresholds <- c(72, 37, 15, 0.03) 
 
 table(df$sentence.quartiles) #NOTE: everyone is in "above 0.03" 
 
@@ -375,13 +375,13 @@ rm(d.setDwhite, d.setDblack)
 
 ### Base Model
 ```{r}
-setwd("/Users/abbysteckel/Desktop/S&DS_491/Sentencing_Data/")
+setwd("/Users/abbysteckel/Desktop/S&DS_491/KLM_sentencing_analysis/")
 ########################
 ## run correct models ##
 ########################
 
 ## predicted use of varying force against various racial groups, no covariates
-if (!file.exists('mods_base_correct_blackwhite_sentencing_wrong.rds')){
+if (!file.exists('mods_base_correct_blackwhite_sentencing_clustered.rds')){
   mods.base.correct <- lapply(
     1:length(thresholds),  # sentence thresholds. 1 = 'above first quartile." 2 = 'above median.' 3 = 'above third quartile.' 
     function(thresh_index){
@@ -401,9 +401,9 @@ if (!file.exists('mods_base_correct_blackwhite_sentencing_wrong.rds')){
       std_err <- sqrt(diag(vcovCL)) 
       return(list(thresh = sentence.quartiles[thresh_index], mod = mod, vcovCL = vcovCL, std_err = std_err))
     })
-  saveRDS(mods.base.correct, 'mods_base_correct_blackwhite_sentencing_wrong.rds')
+  saveRDS(mods.base.correct, 'mods_base_correct_blackwhite_sentencing_clustered.rds')
 } else {
-  mods.base.correct <- readRDS('mods_base_correct_blackwhite_sentencing_wrong.rds')
+  mods.base.correct <- readRDS('mods_base_correct_blackwhite_sentencing_clustered.rds')
 }
 
 mods.base.correct 
@@ -442,7 +442,7 @@ ndraws <- 5000
 alpha <- .95
 chunk.size <- 100
 results.fname <- sprintf(
-  'bounds_results_n%s_alpha%s_blackwhite_sentencing_wrong.rds',
+  'bounds_results_n%s_alpha%s_blackwhite_sentencing_clustered.rds',
   ndraws,
   alpha * 100
 ) 
