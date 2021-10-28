@@ -1,7 +1,7 @@
 ---
 title: "KLM Bounds"
 author: "Abby Steckel"
-date: "10/25/2021"
+date: "10/27/2021"
 output:
   word_document: default
   html_document: default
@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ### Read data 
-```{r, message=FALSE}
+```{r, message=FALSE, warning=FALSE}
 library(R.utils)
 library(tidyverse)
 combine <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
@@ -81,8 +81,7 @@ blue <- '#325585'
 sentence.quartiles <- c(
   'above third quartile', 
   'above median', 
-  'above first quartile', 
-  'above 0.03' #TEMPORARY: delete after resolving question about standard error
+  'above first quartile'
 )
 
 ## set white as base treatment level
@@ -102,15 +101,14 @@ df <- df %>% mutate ( # https://dplyr.tidyverse.org/reference/mutate.html
     sentence.quartiles = case_when( # https://dplyr.tidyverse.org/reference/case_when.html 
       SENTENCE > 72  ~ 'above third quartile', 
       SENTENCE > 37  ~ 'above median',
-      SENTENCE > 15 ~ 'above first quartile',
-      SENTENCE > 0.03 ~ 'above 0.03' #TEMPORARY
+      SENTENCE > 15 ~ 'above first quartile'
     ))
 
-thresholds <- c(72, 37, 15, 0.03) 
+thresholds <- c(72, 37, 15) 
 
 table(df$sentence.quartiles) #quartiles are pretty evenly divided 
 
-if(sum(is.na(df$sentence.quartiles)) != sum(df$SENTENCE <= 0.03)){
+if(sum(is.na(df$sentence.quartiles)) != sum(df$SENTENCE <= 15)){
   print("uh oh, more NAs than unclassified values")
 }
 
@@ -321,7 +319,7 @@ formula.full.race <- formula(
 
 ### model matrices for running models ###
 X.base <- sparse.model.matrix(formula.base, df) 
-dim(X.base) #442187 rows, 2 cols. same nrows as df
+#442187 rows, 2 cols. same nrows as df
 #1st column is column of 1s, 2nd column is race data 
 X.full <- sparse.model.matrix(formula.full, df)
 #dim(X.full) #442187 x 57. There are 57 columns (as opposed to just 26) because each of 32 primary offense level gets its own column, minus one reference offense level 
@@ -373,7 +371,7 @@ rm(d.setDwhite, d.setDblack)
 
 ### Base Model
 ```{r}
-setwd("/Users/abbysteckel/Desktop/S&DS_491/Sentencing_Data/")
+setwd("/Users/abbysteckel/Desktop/S&DS_491/KLM_sentencing_analysis/")
 ########################
 ## run correct models ##
 ########################
@@ -405,7 +403,7 @@ if (!file.exists('mods_base_correct_blackwhite_sentencing.rds')){
 }
 
 mods.base.correct 
-#QUESTION: Shouldn't standard errors increase with decreasing sample size (ie higher threshold), in which case thresh = 0.03 would have the smallest standard errors?  
+#QUESTION: Shouldn't standard errors increase with decreasing sample size (ie higher threshold), in which case thresh = 15 would have the smallest standard errors?  
 
 #interpretation of mods.base.correct
 #QUESTION: is this the correct conversion from log odds to probability? 
@@ -418,16 +416,17 @@ log.odds.to.prob <- function(beta0, beta1, X){
 (p.black.q3 <- log.odds.to.prob(mods.base.correct[[1]]$mod$coefficients[1], mods.base.correct[[1]]$mod$coefficients[2], 1))
 
 #probability that a white person receives an above-median sentence 
-(p.white.q2 <- log.odds.to.prob(mods.base.correct[[2]]$mod$coefficients[1], mods.base.correct[[1]]$mod$coefficients[2], 0))
+(p.white.q2 <- log.odds.to.prob(mods.base.correct[[2]]$mod$coefficients[1], mods.base.correct[[2]]$mod$coefficients[2], 0))
 #probability that a black person receives an above-median sentence 
-(p.black.q2 <- log.odds.to.prob(mods.base.correct[[2]]$mod$coefficients[1], mods.base.correct[[1]]$mod$coefficients[2], 1))
+(p.black.q2 <- log.odds.to.prob(mods.base.correct[[2]]$mod$coefficients[1], mods.base.correct[[2]]$mod$coefficients[2], 1))
 
 #probability that a white person receives an above-first-quartile sentence 
-(p.white.q1 <- log.odds.to.prob(mods.base.correct[[3]]$mod$coefficients[1], mods.base.correct[[1]]$mod$coefficients[2], 0))
+(p.white.q1 <- log.odds.to.prob(mods.base.correct[[3]]$mod$coefficients[1], mods.base.correct[[3]]$mod$coefficients[2], 0))
 #probability that a black person receives an above-first-quartile sentence 
-(p.black.q1 <- log.odds.to.prob(mods.base.correct[[3]]$mod$coefficients[1], mods.base.correct[[1]]$mod$coefficients[2], 1))
+(p.black.q1 <- log.odds.to.prob(mods.base.correct[[3]]$mod$coefficients[1], mods.base.correct[[3]]$mod$coefficients[2], 1))
 
 ```
+
 
 ### Full Model 
 ```{r}
@@ -467,15 +466,16 @@ mod.race.full <- speedglm.wfit(y = df$race == 'white',
 
 #here, I created a fake vector of covariate values by averaging the numeric and binary covariates of the third quartile observations. I arbitrarily looked at primary offense = assault. 
 #QUESTION: Would it be more relevant to the ATE_M=1 estimator to average covariates over Black folks in the third quartile, instead of the entire third quartile? 
+
 quant_covars <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL','YR2001', 'YR2002', 'YR2003', 'YR2004', 'YR2005', 'YR2006', 'YR2007', 'YR2008')
 
 fake_x_q3_black.assault <- c(1, apply(df[df$sentence.quartiles %in% c("above third quartile"), quant_covars], 2, mean), 0, 0, 1, rep(0, 28))
 
-#using the fake covariate vector of mean covariate values, I computed the probability of a black person receiving an above-third-quartile sentence for assault. p = 0.1576, which is surprisingly low.  
+#using the fake covariate vector of mean covariate values, I computed the probability of a black person receiving an above-third-quartile sentence for assault. 
 (p.black.full.q3.assault <- log.odds.to.prob(mods.full.correct[[1]]$mod$coefficients[1], mods.full.correct[[1]]$mod$coefficients[2:57], fake_x_q3_black.assault))
 
 fake_x_q3_white.assault <- c(0, apply(df[df$sentence.quartiles %in% c("above third quartile"), quant_covars], 2, mean), 0, 0, 1, rep(0, 28))
-(p.white.full.q3.assault <- log.odds.to.prob(mods.full.correct[[1]]$mod$coefficients[1], mods.full.correct[[1]]$mod$coefficients[2:57], fake_x_q3_white.assault)) #p = 0.096725 
+(p.white.full.q3.assault <- log.odds.to.prob(mods.full.correct[[1]]$mod$coefficients[1], mods.full.correct[[1]]$mod$coefficients[2:57], fake_x_q3_white.assault)) #p = 0.096725
 
 fake_x_q2_black.assault <- c(1, apply(df[df$sentence.quartiles %in% c("above median"), quant_covars], 2, mean), 0, 0, 1, rep(0, 28))
 #probability that a black person receives an above median sentence
@@ -483,7 +483,7 @@ fake_x_q2_black.assault <- c(1, apply(df[df$sentence.quartiles %in% c("above med
 
 fake_x_q2_white.assault <- c(0, apply(df[df$sentence.quartiles %in% c("above median"), quant_covars], 2, mean), 0, 0, 1, rep(0, 28))
 #probability that a white person receives an above median sentence
-(p.white.full.q2.assault <- log.odds.to.prob(mods.full.correct[[2]]$mod$coefficients[1], mods.full.correct[[1]]$mod$coefficients[2:57], fake_x_q2_white.assault)) 
+(p.white.full.q2.assault <- log.odds.to.prob(mods.full.correct[[2]]$mod$coefficients[1], mods.full.correct[[1]]$mod$coefficients[2:57], fake_x_q2_white.assault))
 
 fake_x_q1_black.assault <- c(1, apply(df[df$sentence.quartiles %in% c("above first quartile"), quant_covars], 2, mean), 0, 0, 1, rep(0, 28))
 #probability that a black person receives an above median sentence
@@ -491,7 +491,7 @@ fake_x_q1_black.assault <- c(1, apply(df[df$sentence.quartiles %in% c("above fir
 
 fake_x_q1_white.assault <- c(0, apply(df[df$sentence.quartiles %in% c("above first quartile"), quant_covars], 2, mean), 0, 0, 1, rep(0, 28))
 #probability that a white person receives an above median sentence
-(p.white.full.q1.assault <- log.odds.to.prob(mods.full.correct[[3]]$mod$coefficients[1], mods.full.correct[[1]]$mod$coefficients[2:57], fake_x_q1_white.assault)) 
+(p.white.full.q1.assault <- log.odds.to.prob(mods.full.correct[[3]]$mod$coefficients[1], mods.full.correct[[1]]$mod$coefficients[2:57], fake_x_q1_white.assault))
 
 #NOTE: the probability of being above the median is less than 0.5 for both races when the crime = assault. This is because assault earns relatively short sentences compared to other offenses (see murder below).
 
@@ -501,6 +501,7 @@ fake_x_q2_black.murder <-c(1, apply(df[df$sentence.quartiles %in% c("above media
 fake_x_q2_white.murder <-c(0, apply(df[df$sentence.quartiles %in% c("above median"), quant_covars], 2, mean), rep(0, 23), 1, rep(0, 7))
 (p.white.full.q2.murder <- log.odds.to.prob(mods.full.correct[[2]]$mod$coefficients[1], mods.full.correct[[1]]$mod$coefficients[2:57], fake_x_q2_white.murder)) #0.946
 ```
+
 
 ### Computing bounds 
 ```{r}
@@ -512,17 +513,16 @@ ndraws <- 5000
 alpha <- .95
 chunk.size <- 100
 results.fname <- sprintf(
-  'bounds_results_n%s_alpha%s_blackwhite_sentencing.rds',
+  'bounds_results_n%s_alpha%s_blackwhite_sentencing_full.rds',
   ndraws,
   alpha * 100
 ) 
 
-rhos <- seq(.01, .99, .01) 
-#rhos <- c(0.01, 0.99) tried using just two rhos when running the full model. still very slow. 
+rhos <- seq(.01, .99, .01)
 
 combos <- expand.grid(treat.race = 'black',
-                      mod.type = c('base'), #NOTE: ultimately want to add 'full' 
-                      thresh = 1:length(thresholds), #tried computing just thresh = 1, still very slow when using full models 
+                      mod.type = c('base', 'full'),
+                      thresh = 1:length(thresholds),
                       stringsAsFactors = FALSE
                       )
 
@@ -723,8 +723,9 @@ if (!file.exists(results.fname)){
 
 #see cilo and cihi computation on line 265
 
-dim(results) # 100 values of rho x 4 sentence thresholds x 2 estimands = 800 rows 
-results[201:221, ] 
+dim(results) # number of values of rho x number of sentence thresholds x 2 estimands x number of model specifications
+
+results
 
 ```
 
