@@ -1,7 +1,7 @@
 
 library(R.utils)
 library(tidyverse)
-combine <- read.csv('/Users/abbysteckel/Desktop/combined.csv.gz')
+combine <- read.csv('combined.csv.gz')
 combine <- na_if(combine, "")
 df <- combine[combine$RACE %in% c("black", "white"), ]
 df$RACE <- ifelse(df$RACE == "black", 1, 0)
@@ -387,7 +387,7 @@ mod.race.partial <- speedglm.wfit(y = df$race == 'white',
 ## bounds and ci for ates / atest ##
 ####################################
 
-ndraws <- 1000
+ndraws <- 500
 alpha <- .95
 chunk.size <- 250
 results.fname <- sprintf(
@@ -396,7 +396,7 @@ results.fname <- sprintf(
   alpha * 100
 ) 
 
-rhos <- c(.01, .5, 0.99)
+rhos <- c(.5, 0.99)
 
 combos <- expand.grid(treat.race = 'black',
                       mod.type = c('base', 'partial'),
