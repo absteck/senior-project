@@ -31,11 +31,12 @@ races.abbr <- c('white', 'black')
 races <- c('white', 'black')
 df$race <- factor(df$RACE, labels = races)
 
-#only 2001 data 
-df <- df[df$YR2001 == 1,]
+#2006-2008 data 
+#NOTE: make sure to use correct subset of years! 
+df <- df[df$YR2008 == 1 | df$YR2007 == 1 | df$YR2006 == 1, ]
 
 outcome <- c('SENTENCE')
-predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'PRIM_OFFENSE', 'race')
+predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'PRIM_OFFENSE', 'YR2007', 'YR2006', 'race')
 
 df <- na.omit(df[, c(outcome, predictors)])
 
@@ -45,6 +46,8 @@ sentence.quartiles <- c(
   'above median', 
   'above first quartile'
 )
+
+#NOTE: need to change quartiles to match final dataset.
 
 #add a categorical sentence levels variable to the df dataframe 
 df <- df %>% mutate ( # https://dplyr.tidyverse.org/reference/mutate.html
@@ -62,9 +65,10 @@ thresholds <- c(72, 37, 15)
 ##################
 
 ## bounds results
-ndraws <- 500
+ndraws <- 5000
 alpha <- .95 #desired significance level 
-results.fname <- sprintf('bounds_results_n%s_alpha%s_blackwhite_sentencing_full.rds', 
+#NOTE: make sure to use the correct results file!! 
+results.fname <- sprintf('bounds_results_n%s_alpha%s_blackwhite_sentencing_full_2006-08.rds', 
                          ndraws,
                          alpha * 100
 )
@@ -284,209 +288,120 @@ ates.black.full
 ## plot bounds ##
 #################
 
-thresh <- 1
-
-ggplot(results[results$thresh == thresh &
-                 results$qoi == 'ates',
-              ],
-      aes(x = rho)
-      ) +
-  geom_hline(yintercept = 0,
-            ) +
-  geom_ribbon(aes(ymin = min.cilo * nrow(df) / 1000,
-                  ymax = max.cihi * nrow(df) / 1000
-  ),
-  fill = paste0(red, '80')
-  ) +
-  geom_ribbon(aes(ymin = min * nrow(df) / 1000,
-                  ymax = max * nrow(df) / 1000,
-                  fill = 'TE_S'
-  )
-  ) +
-  geom_line(aes(y = est * n.minority / 1000,
-                linetype = 'TE_ST',
-  ),
-  results[results$thresh == thresh &
-            results$qoi == 'atest',
+#create list of plots for each threshold 
+p <- lapply(1:3, function(thresh, quartile) {
+  ggplot(results[results$thresh == thresh &
+                           results$qoi == 'ates',
   ],
-  color = 'black',
-  size = 1
+  aes(x = rho)
   ) +
-  geom_point(aes(y = est * nrow(df) / 1000,
-                 color = 'naive'
-  ),
-  data = results[results$thresh == thresh & results$rho == 0,],
-  color = blue,
-  size = 2
-  ) +
-  geom_errorbar(aes(ymin = est.cilo * nrow(df) / 1000,
-                    ymax = est.cihi * nrow(df) / 1000,
-                    color = 'naive'
-  ),
-  data = results[results$thresh == thresh & results$rho == 0,],
-  width = 1,
-  size = 1
-  ) +
-  geom_vline(aes(xintercept = rho),
-             data = annotations,
-             ## data = annotations[ifelse(rep(presentation, nrow(annotations)),
-             ##                           annotations$race == 'black',
-             ##                           TRUE
-             ##                           ),],
-             ## linetype = 'dashed',
-             size = .25
-  ) +
-  geom_text(aes(label = text),
-            data = annotations,
-            y = 1300,
-            size = 5,
-            hjust = 1,
-            vjust = -.5,
-            angle = 90
-  ) +
-  theme_light(base_size = 24) +
-  theme(legend.position = 'bottom',
-        legend.key.size = unit(1, 'cm'),
-        legend.spacing.x = unit(.1, 'cm'),
-        panel.grid.minor = element_blank(),
-        panel.grid.major = element_line(linetype = 'dashed')
-  ) +
-  guides(color = guide_legend(title = NULL, order = 1),
-         linetype = guide_legend(title = NULL, order = 2),
-         fill = guide_legend(title = NULL, order = 3)
-  ) +
-  scale_color_manual(
-    name = 'x',
-    values = c('naive' = blue,
-               'TE_S' = NA,
-               'TE_ST' = NA
+    geom_hline(yintercept = 0,
+    ) +
+    geom_ribbon(aes(ymin = min.cilo * nrow(df) / 1000,
+                    ymax = max.cihi * nrow(df) / 1000
     ),
-    labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{convicted}'),
-               'TE_S' = expression('ATE'['M=1'] %*% ' #{convicted}'),
-               'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
+    fill = paste0(red, '80')
+    ) +
+    geom_ribbon(aes(ymin = min * nrow(df) / 1000,
+                    ymax = max * nrow(df) / 1000,
+                    fill = 'TE_S'
     )
-  ) +
-  scale_fill_manual(name = 'x',
-                    values = c('naive' = NA,
-                               'TE_S' = red,
-                               'TE_ST' = NA
-                    ),
-                    labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{convicted}'),
-                               'TE_S' = expression('ATE'['M=1'] %*% ' #{convicted}'),
-                               'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
-                    )
-  ) +
-  scale_linetype_manual(
-    name = 'x',
-    values = c('naive' = NA,
-               'TE_S' = NA,
-               'TE_ST' = 'dashed'
+    ) +
+    geom_line(aes(y = est * n.minority / 1000,
+                  linetype = 'TE_ST',
     ),
-    labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{convicted}'),
-               'TE_S' = expression('ATE'['M=1'] %*% ' #{convicted}'),
-               'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
-    )
-  ) +
-  ylab('Civilians subject to any racially\ndiscriminatory sentence (thousands)\n') +
-  xlab('\nProportion of racially discriminatory convictions') +
-  xlim(0, 1) +
-  facet_grid(mod.label ~ race.label) +
-  theme(text = element_text(size = 12))
-ggsave('plots_full_3rdQ.pdf', width = 10, height = 9)
+    results[results$thresh == thresh &
+              results$qoi == 'atest',
+    ],
+    color = 'black',
+    size = 1
+    ) +
+    geom_point(aes(y = est * nrow(df) / 1000,
+                   color = 'naive'
+    ),
+    data = results[results$thresh == thresh & results$rho == 0,],
+    color = blue,
+    size = 2
+    ) +
+    geom_errorbar(aes(ymin = est.cilo * nrow(df) / 1000,
+                      ymax = est.cihi * nrow(df) / 1000,
+                      color = 'naive'
+    ),
+    data = results[results$thresh == thresh & results$rho == 0,],
+    width = 1,
+    size = 1
+    ) +
+    geom_vline(aes(xintercept = rho),
+               data = annotations,
+               ## data = annotations[ifelse(rep(presentation, nrow(annotations)),
+               ##                           annotations$race == 'black',
+               ##                           TRUE
+               ##                           ),],
+               ## linetype = 'dashed',
+               size = .25
+    ) +
+    geom_text(aes(label = text),
+              data = annotations,
+              y = 1300,
+              size = 5,
+              hjust = 1,
+              vjust = -.5,
+              angle = 90
+    ) +
+    theme_light(base_size = 24) +
+    theme(legend.position = 'bottom',
+          legend.key.size = unit(1, 'cm'),
+          legend.spacing.x = unit(.1, 'cm'),
+          panel.grid.minor = element_blank(),
+          panel.grid.major = element_line(linetype = 'dashed')
+    ) +
+    guides(color = guide_legend(title = NULL, order = 1),
+           linetype = guide_legend(title = NULL, order = 2),
+           fill = guide_legend(title = NULL, order = 3)
+    ) +
+    scale_color_manual(
+      name = 'x',
+      values = c('naive' = blue,
+                 'TE_S' = NA,
+                 'TE_ST' = NA
+      ),
+      labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{convicted}'),
+                 'TE_S' = expression('ATE'['M=1'] %*% ' #{convicted}'),
+                 'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
+      )
+    ) +
+    scale_fill_manual(name = 'x',
+                      values = c('naive' = NA,
+                                 'TE_S' = red,
+                                 'TE_ST' = NA
+                      ),
+                      labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{convicted}'),
+                                 'TE_S' = expression('ATE'['M=1'] %*% ' #{convicted}'),
+                                 'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
+                      )
+    ) +
+    scale_linetype_manual(
+      name = 'x',
+      values = c('naive' = NA,
+                 'TE_S' = NA,
+                 'TE_ST' = 'dashed'
+      ),
+      labels = c('naive' = expression('naïve ATE'['M=1'] %*% ' #{convicted}'),
+                 'TE_S' = expression('ATE'['M=1'] %*% ' #{convicted}'),
+                 'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
+      )
+    ) +
+    ylab(sprintf('Civilians subject to any racially\ndiscriminatory %15s sentence (thousands)\n', sentence.quartiles[thresh])) +
+    xlab('\nProportion of racially discriminatory convictions') +
+    xlim(0, 1) +
+    facet_grid(mod.label ~ race.label) +
+    theme(text = element_text(size = 12))
+  }
+)
 
-# thresh <- 1:3
-# for (mod.type in c('base', 'full')){
-#   for (treat.race in c('black')){
-#     keep <-
-#       results$thresh %in% thresh &
-#       results$mod.type == mod.type &
-#       results$treat.race == treat.race &
-#       results$rho <= .8
-#     p <- ggplot(results[keep & results$qoi == 'ates',],
-#                 aes(x = rho)
-#     ) +
-#       geom_hline(yintercept = 0,
-#       ) +
-#       geom_ribbon(aes(ymin = min.cilo * nrow(df) / 1000,
-#                       ymax = max.cihi * nrow(df) / 1000
-#       ),
-#       fill = paste0(red, '80')
-#       ) +
-#       geom_ribbon(aes(ymin = min * nrow(df) / 1000,
-#                       ymax = max * nrow(df) / 1000,
-#                       fill = 'TE_S'
-#       )
-#       ) +
-#       geom_line(aes(y = est * n.minority / 1000,
-#                     linetype = 'TE_ST',
-#       ),
-#       results[keep & results$qoi == 'atest',
-#       ],
-#       color = 'black',
-#       size = 1
-#       ) +
-#       geom_point(aes(y = est * nrow(df) / 1000,
-#                      color = 'naive'
-#       ),
-#       data = results[keep & results$rho == 0,],
-#       color = blue,
-#       size = 2
-#       ) +
-#       geom_errorbar(aes(ymin = est.cilo * nrow(df) / 1000,
-#                         ymax = est.cihi * nrow(df) / 1000,
-#                         color = 'naive'
-#       ),
-#       data = results[keep & results$rho == 0,],
-#       width = 1,
-#       size = 1
-#       ) +
-#       geom_vline(aes(xintercept = rho),
-#                  data = annotations[annotations$treat.race == treat.race,],
-#                  size = .25
-#       ) +
-#       ## geom_text(aes(label = text),
-#       ##           data = annotations[annotations$treat.race == treat.race,],
-#       ##           y = 1550,
-#       ##           size = 5,
-#       ##           hjust = 1,
-#       ##           vjust = -.5,
-#       ##           angle = 90
-#       ##           ) +
-#       theme_light(base_size = 24) +
-#       theme(legend.position = 'bottom',
-#             legend.key.size = unit(1, 'cm'),
-#             legend.spacing.x = unit(.25, 'cm'),
-#             panel.grid.minor = element_blank(),
-#             panel.grid.major = element_line(linetype = 'dashed')
-#       ) +
-#       guides(color = guide_legend(title = NULL, order = 1),
-#              linetype = guide_legend(title = NULL, order = 2),
-#              fill = guide_legend(title = NULL, order = 3)
-#       ) +
-#       scale_color_manual(
-#         name = 'x',
-#         values = c('naive' = blue),
-#         labels = expression('naïve ATE'['M=1'] %*% ' #{convicted}')
-#       ) +
-#       scale_fill_manual(name = 'x',
-#                         values = c('TE_S' = red),
-#                         labels = expression('ATE'['M=1'] %*% ' #{convicted}')
-#       ) +
-#       scale_linetype_manual(
-#         name = 'x',
-#         values = c('TE_ST' = 'dashed'),
-#         labels = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
-#       ) +
-#       ylab('Civilians subject to any racially\ndiscriminatory sentence (thousands)\n') +
-#       xlab('\nProportion of discriminatory convictions') +
-#       xlim(0, .8) +
-#       facet_wrap('thresh.label.short', scales = 'free') +
-#       theme(legend.text = element_text(size = 17))
-#     # ptitle <- sprintf('pics/bounds_other_correct_%s_%s.pdf', mod.type, treat.race)
-#     # ggsave(ptitle, plot = p, width = 14, height = 8)
-#   }
-#   
-# }
-# 
-# 
-# 
+#export all plots as a PDF
+ggsave(
+  filename = "plots_2006-08.pdf", 
+  plot = marrangeGrob(p, nrow=1, ncol=1), 
+  width = 15, height = 9
+)
