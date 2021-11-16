@@ -1,4 +1,5 @@
 
+library(plyr)
 library(R.utils)
 library(tidyverse)
 combine <- read.csv('combined.csv.gz')
@@ -6,13 +7,10 @@ combine <- na_if(combine, "")
 df <- combine[combine$RACE %in% c("black", "white"), ]
 df$RACE <- ifelse(df$RACE == "black", 1, 0)
 
-if(mean(df$SENTENCE[df$RACE==1], na.rm = TRUE) - mean(df$SENTENCE[df$RACE==0], na.rm = TRUE) != 42.41256){
-  print("error in data import")
-}
+print(paste0("expected naive diff in means: 42.413. observed: ", round(mean(df$SENTENCE[df$RACE==1], na.rm = TRUE) - mean(df$SENTENCE[df$RACE==0], na.rm = TRUE),3)))
 
 ## data manipulation
 library(reshape2)
-library(plyr)
 library(stringr)
 
 ## math
@@ -33,6 +31,8 @@ registerDoMC(cores = 8)
 red <- '#A31F34'
 blue <- '#325585'
 
+csize <- 100 # parallel processing chunk size
+
 #create sentence levels  
 sentence.quartiles <- c(
   'above third quartile', 
@@ -45,17 +45,19 @@ races.abbr <- c('white', 'black')
 races <- c('white', 'black')
 df$race <- factor(df$RACE, labels = races)
 
-#subset to just 2008 data 
-df <- df[df$YR2008 == 1,]
+#subset to just 2008 and 2007 data 
+df <- df[df$YR2008 == 1 | df$YR2007 == 1 | df$YR2006 == 1,]
 
 outcome <- c('SENTENCE') 
-predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'PRIM_OFFENSE', 'race') #26 predictors 
+predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'PRIM_OFFENSE', 'YR2007', 'YR2006', 'race') 
 
 df <- na.omit(df[, c(outcome, predictors)])
 
-if(setequal(quantile(df$SENTENCE), c(0, 15, 37, 72, 11520)) == FALSE){
-  print("check quantiles")
-}
+# expected quantiles differ depending on years used 
+# NOTE: will need to change sentence.quartiles to reflect the final dataset used!! Currently, the quartiles are for the entire dataset 2000-2008.
+# if(setequal(quantile(df$SENTENCE), c(0, 15, 37, 72, 11520)) == FALSE){
+#   print("check quantiles")
+# }
 
 #add a categorical sentence quartiles variable to the dataframe 
 df <- df %>% mutate ( # https://dplyr.tidyverse.org/reference/mutate.html
@@ -67,9 +69,9 @@ df <- df %>% mutate ( # https://dplyr.tidyverse.org/reference/mutate.html
 
 thresholds <- c(72, 37, 15) 
 
-if(sum(is.na(df$sentence.quartiles)) != sum(df$SENTENCE <= 15)){
-  print("error: more NAs than unclassified values")
-}
+# if(sum(is.na(df$sentence.quartiles)) != sum(df$SENTENCE <= quantile(df$SENTENCE)[2])){
+#   print("error: more NAs than unclassified values")
+# }
 
 
 ###############
@@ -257,11 +259,11 @@ compute.bounds.ci.from.samples <- function(min.stars, max.stars, alpha){
 formula.base <- formula(~ race)
 
 formula.full <- formula(
-  ~ race + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL
+  ~ race + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2007 + YR2006
 )
 
 formula.full.race <- formula(
-  ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL
+  ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2007 + YR2006
 )
 
 
@@ -386,9 +388,9 @@ mod.race.full <- speedglm.wfit(y = df$race == 'white',
 ## bounds and ci for ates / atest ##
 ####################################
 
-ndraws <- 500
+ndraws <- 5000
 alpha <- .95
-chunk.size <- 250
+chunk.size <- csize
 results.fname <- sprintf(
   'bounds_results_n%s_alpha%s_blackwhite_sentencing_full.rds',
   ndraws,
