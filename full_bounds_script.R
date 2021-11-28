@@ -1,7 +1,7 @@
-
 library(plyr)
 library(R.utils)
 library(tidyverse)
+
 combine <- read.csv('combined.csv.gz')
 combine <- na_if(combine, "")
 df <- combine[combine$RACE %in% c("black", "white"), ]
@@ -33,11 +33,11 @@ blue <- '#325585'
 
 csize <- 100 # parallel processing chunk size
 
-#create sentence levels  
+#create sentence levels corresponding to the 3rd, 2nd, and 1st quartiles for 2006-2008 sentences
 sentence.quartiles <- c(
-  'above third quartile', 
-  'above median', 
-  'above first quartile'
+  'above 77', 
+  'above 37', 
+  'above 15'
 )
 
 ## set white as base treatment level
@@ -45,33 +45,30 @@ races.abbr <- c('white', 'black')
 races <- c('white', 'black')
 df$race <- factor(df$RACE, labels = races)
 
-#subset to just 2008 and 2007 data 
+#subset to 2006 - 2008 data 
 df <- df[df$YR2008 == 1 | df$YR2007 == 1 | df$YR2006 == 1,]
 
 outcome <- c('SENTENCE') 
 predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'PRIM_OFFENSE', 'YR2007', 'YR2006', 'race') 
 
 df <- na.omit(df[, c(outcome, predictors)])
-
-# expected quantiles differ depending on years used 
-# NOTE: will need to change sentence.quartiles to reflect the final dataset used!! Currently, the quartiles are for the entire dataset 2000-2008.
-# if(setequal(quantile(df$SENTENCE), c(0, 15, 37, 72, 11520)) == FALSE){
-#   print("check quantiles")
-# }
+if(setequal(quantile(df$SENTENCE), c(0.03, 15, 37, 77, 11520)) == FALSE){
+  print("check quantiles")
+}
 
 #add a categorical sentence quartiles variable to the dataframe 
 df <- df %>% mutate ( # https://dplyr.tidyverse.org/reference/mutate.html
   sentence.quartiles = case_when( # https://dplyr.tidyverse.org/reference/case_when.html 
-    SENTENCE > 72  ~ 'above third quartile', 
-    SENTENCE > 37  ~ 'above median',
-    SENTENCE > 15 ~ 'above first quartile'
+    SENTENCE > 77  ~ 'above 77', 
+    SENTENCE > 37  ~ 'above 37',
+    SENTENCE > 15 ~ 'above 15'
   ))
 
-thresholds <- c(72, 37, 15) 
+thresholds <- c(77, 37, 15) 
 
-# if(sum(is.na(df$sentence.quartiles)) != sum(df$SENTENCE <= quantile(df$SENTENCE)[2])){
-#   print("error: more NAs than unclassified values")
-# }
+if(sum(is.na(df$sentence.quartiles)) != sum(df$SENTENCE <= quantile(df$SENTENCE)[2])){
+  print("error: more NAs than unclassified values")
+}
 
 
 ###############
@@ -432,13 +429,15 @@ if (!file.exists(results.fname)){
         n = ndraws, #n = 5000
         mu = coef(get(sprintf('mods.%s.correct', mod.type))[[thresh]]$mod), #coefficients beta0 and beta1 of the model with the given thresh 
         Sigma = get(sprintf('mods.%s.correct', mod.type))[[thresh]]$vcovCL #covariance matrix of the data, gives standard dev for normal draws 
+        #note that the simulated coefficients are computed using data from the specified threshold 
+        #so the estimated treatment effect and covariate adjustment will be different depending on sentence severity 
       ))
       
       ### compute ates ###
       
       if (mod.type == 'full'){
         D0.prob <-
-          1 / (1 + exp(-(as.numeric(X.full.race %*% coef(mod.race.full))))) #probability of being white given values of other covariates
+          1 / (1 + exp(-(as.numeric(X.full.race %*% coef(mod.race.full))))) #covariate-adjusted probability of being white
       } else {
         D0.prob <- mean(df$race == 'white') #probability of being white in the base model 
       }
