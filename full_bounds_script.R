@@ -2,6 +2,9 @@ library(plyr)
 library(R.utils)
 library(tidyverse)
 
+#for loading on local computer 
+#combine <- read.csv('/Users/abbysteckel/Desktop/S&DS_491/KLM_sentencing_analysis/combined.csv.gz')
+#for loading data on HPC 
 combine <- read.csv('combined.csv.gz')
 combine <- na_if(combine, "")
 df <- combine[combine$RACE %in% c("black", "white"), ]
@@ -45,6 +48,9 @@ races.abbr <- c('white', 'black')
 races <- c('white', 'black')
 df$race <- factor(df$RACE, labels = races)
 
+#change primary offense to a factor 
+df$PRIM_OFFENSE <- as.factor(df$PRIM_OFFENSE)
+
 #subset to 2006 - 2008 data 
 df <- df[df$YR2008 == 1 | df$YR2007 == 1 | df$YR2006 == 1,]
 
@@ -70,7 +76,7 @@ if(sum(is.na(df$sentence.quartiles)) != sum(df$SENTENCE <= quantile(df$SENTENCE)
   print("error: more NAs than unclassified values")
 }
 
-
+dim(df)
 ###############
 ## functions ##
 ###############
@@ -255,12 +261,13 @@ compute.bounds.ci.from.samples <- function(min.stars, max.stars, alpha){
 
 formula.base <- formula(~ race)
 
+#predictors <- c('race', 'AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'PRIM_OFFENSE', 'YR2007', 'YR2006') 
 formula.full <- formula(
-  ~ race + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2007 + YR2006
+  ~ race + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + PRIM_OFFENSE + YR2007 + YR2006
 )
 
 formula.full.race <- formula(
-  ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2007 + YR2006
+  ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + PRIM_OFFENSE + YR2007 + YR2006
 )
 
 
@@ -386,7 +393,7 @@ mod.race.full <- speedglm.wfit(y = df$race == 'white',
 ####################################
 
 ndraws <- 5000
-alpha <- .95
+alpha <- .95 #95% confidence intervals 
 chunk.size <- csize
 results.fname <- sprintf(
   'bounds_results_n%s_alpha%s_blackwhite_sentencing_full.rds',
@@ -423,7 +430,7 @@ if (!file.exists(results.fname)){
       
       ### intermediate values needed for qoi ### 
       
-      ## simulated coefficients
+      ## simulated coefficients - drawn with noise from a normal distribution centered at the coefficients computed using the glm 
       set.seed(02139)
       coef.stars <- t(mvrnorm( #mvrnorm() draws a random sample and fills a matrix by column
         n = ndraws, #n = 5000
@@ -454,7 +461,7 @@ if (!file.exists(results.fname)){
           ))
           chunk.ind <- chunk.start + 0:(chunk.size - 1)
           ## for naive ate, set all encounters to a particular race, then
-          ##   predict use of force in each encounter (row) by coef draw (col)
+          ##   predict outcome in each encounter (row) by coef draw (col)
           pred.setD1.chunk <- logit.sims.predict(
             get(sprintf('X.%s.setD%s', mod.type, treat.race)), #X.base.setblack: data vectors where treatment is set to 1 
             coef.stars[,chunk.ind] #these are our betas 
@@ -468,9 +475,12 @@ if (!file.exists(results.fname)){
           ates.naive.chunk <- colMeans(pred.setD1.chunk - pred.setD0.chunk)
           ## ates bounds and atest at various rhos (rows) and coef samples (cols)
           ## note: this duplicates vector D0.prob over columns of pred.setD0
+          
+          #ates.bounds.lo.chunk = lower bounds on ATE_M=1 (see p.11) for the series of rhos 
           ates.bounds.lo.chunk <- laply(rhos, function(rho){
             ates.naive.chunk + colMeans(rho * pred.setD0.chunk * (1 - D0.prob))
           })
+          #ates.bounds.hi.chunk = upper bounds on ATE_M=1 
           ates.bounds.hi.chunk <- ates.bounds.lo.chunk +
             laply(rhos, function(rho){
               colMeans(
@@ -482,8 +492,8 @@ if (!file.exists(results.fname)){
             })
           ## output
           return(list(ates.naive = ates.naive.chunk,
-                      ates.bounds.lo = ates.bounds.lo.chunk,
-                      ates.bounds.hi = ates.bounds.hi.chunk
+                      ates.bounds.lo = ates.bounds.lo.chunk, #lower bounds on ATE_M=1 
+                      ates.bounds.hi = ates.bounds.hi.chunk #upper bounds on ATE_M=1 
           )
           )
         })
@@ -499,7 +509,7 @@ if (!file.exists(results.fname)){
       )
       rm(ates.chunks)
       
-      ### compute atest ###
+      ### compute atest ### (aka ATT_M=1)
       
       ## for naive atest (minority encounters with real race, vs set to white)
       ## we never need the encounter-wise values for atest, so just store
@@ -518,7 +528,7 @@ if (!file.exists(results.fname)){
       ## for each coef draw, difference in mean predicted force
       ##   when setting D=1 vs D=0
       atest.naive <- predD1.setD1 - predD1.setD0
-      
+      # this is ATT_M=1 (see p. 11)
       atest <- laply(rhos, function(rho){
         atest.naive + rho * predD1.setD0
       })
@@ -526,15 +536,16 @@ if (!file.exists(results.fname)){
       ### output ###
       
       ## ates
-      ates.naive.est <- mean(ates.naive)
-      ates.naive.ci <- unname(quantile(
+      ates.naive.est <- mean(ates.naive) #naive ATE
+      #confidence intervals are created by getting the desired quantiles of the distribution of simulated ATEs 
+      ates.naive.ci <- unname(quantile( #confidence interval for naive ATE 
         ates.naive,
         c((1 - alpha) / 2, (alpha + 1) / 2)
       ))
-      ates.bounds.est <- cbind(min = rowMeans(ates.bounds.lo),
-                               max = rowMeans(ates.bounds.hi)
+      ates.bounds.est <- cbind(min = rowMeans(ates.bounds.lo), #bounds for ATE_M=1 
+                               max = rowMeans(ates.bounds.hi) #upper bounds for ATE_M=1 
       )
-      ates.bounds.ci <- ldply(seq_along(rhos),
+      ates.bounds.ci <- ldply(seq_along(rhos), #confidence intervals for the bounds on ATE_M=1 
                               function(i){
                                 compute.bounds.ci.from.samples(
                                   ates.bounds.lo[i,], 
@@ -549,8 +560,8 @@ if (!file.exists(results.fname)){
         atest.naive,
         c((1 - alpha) / 2, (alpha + 1) / 2)
       ))
-      atest.est <- rowMeans(atest)
-      atest.ci <- adply(atest,
+      atest.est <- rowMeans(atest) #mean ATT_M=1 estimate 
+      atest.ci <- adply(atest, #confidence interval for ATT_M=1 
                         1,
                         function(x){
                           out <- quantile(
@@ -566,17 +577,17 @@ if (!file.exists(results.fname)){
       return(rbind.fill(
         data.frame(qoi = 'ates',
                    rho = c(0, rhos),
-                   est = c(ates.naive.est, rep(NA, length(rhos))),
-                   est.cilo = c(ates.naive.ci[1], rep(NA, length(rhos))),
-                   est.cihi = c(ates.naive.ci[2], rep(NA, length(rhos))),
-                   min = c(NA, ates.bounds.est[, 'min']),
-                   max = c(NA, ates.bounds.est[, 'max']),
-                   min.cilo = c(NA, ates.bounds.ci[, 'min.cilo']), 
-                   max.cihi = c(NA, ates.bounds.ci[, 'max.cihi'])
+                   est = c(ates.naive.est, rep(NA, length(rhos))), #est = naive ATE 
+                   est.cilo = c(ates.naive.ci[1], rep(NA, length(rhos))), #est.cilo = lower bound for confidence interval on naive ate 
+                   est.cihi = c(ates.naive.ci[2], rep(NA, length(rhos))), #est.cihi = upper bound for confidence interval on naive ATE 
+                   min = c(NA, ates.bounds.est[, 'min']), #lower bound for ATE_M=1 
+                   max = c(NA, ates.bounds.est[, 'max']), #upper bound for ATE_M=1 
+                   min.cilo = c(NA, ates.bounds.ci[, 'min.cilo']), #lower bound for CI of ATE_M=1 
+                   max.cihi = c(NA, ates.bounds.ci[, 'max.cihi']) #upper bound for CI of ATE_M=1 
         ),
         data.frame(qoi = 'atest',
                    rho = c(0, rhos),
-                   est = c(atest.naive.est, atest.est),
+                   est = c(atest.naive.est, atest.est), #huh, why not differentiate between the naive ATT and the KLM ATT, as for ATE_M=1? 
                    est.cilo = c(atest.naive.ci[1], atest.ci[,'cilo']),
                    est.cihi = c(atest.naive.ci[2], atest.ci[,'cihi'])
         )
