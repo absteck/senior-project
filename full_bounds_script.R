@@ -55,7 +55,7 @@ df$PRIM_OFFENSE <- as.factor(df$PRIM_OFFENSE)
 df <- df[df$YR2008 == 1 | df$YR2007 == 1 | df$YR2006 == 1,]
 
 outcome <- c('SENTENCE') 
-predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'PRIM_OFFENSE', 'YR2007', 'YR2006', 'race') 
+predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'SWB', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'PRIM_OFFENSE', 'YR2007', 'YR2006', 'race') 
 
 df <- na.omit(df[, c(outcome, predictors)])
 if(setequal(quantile(df$SENTENCE), c(0.03, 15, 37, 77, 11520)) == FALSE){
@@ -261,13 +261,13 @@ compute.bounds.ci.from.samples <- function(min.stars, max.stars, alpha){
 
 formula.base <- formula(~ race)
 
-#predictors <- c('race', 'AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'PRIM_OFFENSE', 'YR2007', 'YR2006') 
+#predictors <- c('race', 'AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'SWB', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'PRIM_OFFENSE', 'YR2007', 'YR2006') 
 formula.full <- formula(
-  ~ race + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + PRIM_OFFENSE + YR2007 + YR2006
+  ~ race + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + SWB + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + PRIM_OFFENSE + YR2007 + YR2006
 )
 
 formula.full.race <- formula(
-  ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + PRIM_OFFENSE + YR2007 + YR2006
+  ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + SWB + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + PRIM_OFFENSE + YR2007 + YR2006
 )
 
 
@@ -463,7 +463,7 @@ if (!file.exists(results.fname)){
           ## for naive ate, set all encounters to a particular race, then
           ##   predict outcome in each encounter (row) by coef draw (col)
           pred.setD1.chunk <- logit.sims.predict(
-            get(sprintf('X.%s.setD%s', mod.type, treat.race)), #X.base.setblack: data vectors where treatment is set to 1 
+            get(sprintf('X.%s.setD%s', mod.type, treat.race)), #X.base.setDblack: data vectors where treatment is set to 1 
             coef.stars[,chunk.ind] #these are our betas 
           )
           pred.setD0.chunk <- logit.sims.predict(
