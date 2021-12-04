@@ -38,9 +38,9 @@ csize <- 100 # parallel processing chunk size
 
 #create sentence levels corresponding to the 3rd, 2nd, and 1st quartiles for 2006-2008 sentences
 sentence.quartiles <- c(
-  'above 77', 
   'above 37', 
-  'above 15'
+  'above 21', 
+  'above 10'
 )
 
 ## set white as base treatment level
@@ -48,19 +48,21 @@ races.abbr <- c('white', 'black')
 races <- c('white', 'black')
 df$race <- factor(df$RACE, labels = races)
 
-#subset to 2006 - 2008 data 
-df <- df[df$PRIM_OFFENSE == "immigration", ]
+#change primary offense to a factor 
+df$PRIM_OFFENSE <- as.factor(df$PRIM_OFFENSE)
+
+#subset to prim_offense %in% immigration
+df <- df[df$PRIM_OFFENSE %in% c("immigration"),]
+df$PRIM_OFFENSE <- droplevels(df$PRIM_OFFENSE)
 
 outcome <- c('SENTENCE') 
-#removed PRIM_OFFENSE from predictors, added indicators for all years 
-predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'SWB', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'YR2008','YR2007', 'YR2006', 'YR2005', 'YR2004', 'YR2003', 'YR2002', 'YR2001', 'YR2000', 'race') 
+predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'SWB', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'YR2007', 'YR2006', 'YR2005', 'YR2004', 'YR2003', 'YR2002', 'YR2001', 'YR2000', 'race') 
 
 df <- na.omit(df[, c(outcome, predictors)])
-# if(setequal(quantile(df$SENTENCE), c(0.03, 15, 37, 77, 11520)) == FALSE){
-#   print("check quantiles")
-# }
+if(setequal(quantile(df$SENTENCE), c(0.03, 15, 37, 77, 11520)) == FALSE){
+  print("check quantiles")
+}
 
-#adjusted quantiles for immigration data 
 #add a categorical sentence quartiles variable to the dataframe 
 df <- df %>% mutate ( # https://dplyr.tidyverse.org/reference/mutate.html
   sentence.quartiles = case_when( # https://dplyr.tidyverse.org/reference/case_when.html 
@@ -260,13 +262,12 @@ compute.bounds.ci.from.samples <- function(min.stars, max.stars, alpha){
 
 formula.base <- formula(~ race)
 
-#removed PRIM_OFFENSE, added indicators for all years 
 formula.full <- formula(
-  ~ race + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + SWB + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2008 + YR2007 + YR2006 + YR2005 + YR2004 + YR2003 + YR2002 + YR2001 + YR2000
+  ~ race + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + SWB + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2007 + YR2006 + YR2005 + YR2004 + YR2003 + YR2002 + YR2001 + YR2000
 )
 
 formula.full.race <- formula(
-  ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + SWB + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2008 + YR2007 + YR2006 + YR2005 + YR2004 + YR2003 + YR2002 + YR2001 + YR2000
+  ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + SWB + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2007 + YR2006 + YR2005 + YR2004 + YR2003 + YR2002 + YR2001 + YR2000
 )
 
 
@@ -462,7 +463,7 @@ if (!file.exists(results.fname)){
           ## for naive ate, set all encounters to a particular race, then
           ##   predict outcome in each encounter (row) by coef draw (col)
           pred.setD1.chunk <- logit.sims.predict(
-            get(sprintf('X.%s.setD%s', mod.type, treat.race)), #X.base.setblack: data vectors where treatment is set to 1 
+            get(sprintf('X.%s.setD%s', mod.type, treat.race)), #X.base.setDblack: data vectors where treatment is set to 1 
             coef.stars[,chunk.ind] #these are our betas 
           )
           pred.setD0.chunk <- logit.sims.predict(
