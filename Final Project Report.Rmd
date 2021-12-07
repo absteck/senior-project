@@ -1,26 +1,34 @@
 ---
-title: "Final Project Report"
+title: "Project Report"
+date: "December 6, 2021"
+author: "Abby Steckel"
 output:
   html_document: default
   word_document: default
 ---
 
+<style type="text/css">
+  body{
+  font-size: 12pt;
+}
+</style>
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-A major challenge in studies of discrimination in the criminal legal system is the selection bias present in observational data. In their 2019 paper, “Administrative Records Mask Racially Biased Policing,” Dean Knox, Will Lowe, and Jonathan Mummolo demonstrated that prior research on police use of force underestimated racial disparities by failing to account for the fact that whether someone is included in the sample — whether they are stopped by police  — is a post-treatment variable. Knox et al introduced a mediating variable representing the proportion of racially discriminatory stops, and used this quantity as a sensitivity parameter to compute bounds on the ATE and the ATT among the sample population. This paper describes my attempt to use Knox, Lowe, and Mummolo’s method to obtain bounds on the proportion of racially discriminatory sentences in a federal sentencing dataset. Although the racism of the criminal justice system affects nonwhite people of different races and ethnicities, this paper focuses on the disparate treatment of white versus Black people. I consider sentencing practices to be discriminatory if there is a difference in the probability that a Black versus a white person will receive a sentence exceeding a particular length, holding observable covariates equal. Consistent with Mummolo et al’s findings for police use of force, I find that when we assume that a person’s inclusion in the sample is affected by the court’s perception of their race, then the estimated disparity between white and Black sentence length is larger than when we unrealistically assume that there is no discrimination in convictions. 
+A major challenge in studies of discrimination in the criminal legal system is the selection bias present in observational data. In their 2019 paper, “Administrative Records Mask Racially Biased Policing,” Dean Knox, Will Lowe, and Jonathan Mummolo demonstrated that prior research on police use of force underestimated racial disparities by failing to account for the fact that whether someone is included in the sample — whether they are stopped by police  — is a post-treatment variable. Knox et al introduced a mediating variable representing the proportion of racially discriminatory stops, and used this quantity as a sensitivity parameter to compute bounds on the ATE and the ATT among the sample population. This paper describes my attempt to use Knox, Lowe, and Mummolo’s method to obtain bounds on the proportion of racially discriminatory sentences in a federal sentencing dataset. Although the racism of the criminal justice system affects nonwhite people of different races and ethnicities, this paper focuses on the disparate treatment of white versus Black people. I consider sentencing practices to be discriminatory if there is a difference in the probability that a Black versus a white person will receive a sentence exceeding a particular length, holding observable covariates equal. Consistent with Mummolo et al’s findings for police use of force, I find that for a large sentencing dataset, when we assume that a person’s inclusion in the sample is affected by the court’s perception of their race, then the estimated disparity between white and Black sentence length is larger than when we unrealistically assume that there is no discrimination in convictions. In an effort to ensure compliance with model assumptions, I computed treatment effect bounds for a subset of the data involving only immigration cases. Seemingly due to the characteristics of this immigration dataset, the resulting  bounds were so large as to be uninformative. 
 
-In their October 2013 article analyzing the effects of relaxing federal mandatory sentencing guidelines, Sonja B. Starr and M. Marit Rehavi criticized studies that analyzed disparities in sentencing, controlling for case characteristics at the time of sentencing. Starr and Rehavi observed that “pre-sentencing decision-making can have substantial sentence-disparity consequences.” In applying Mummolo et al’s methodology to sentencing analysis, I consider Starr and Rehavi’s statement and in particular look at how observed sentencing disparities vary when the pre-sentencing decision to convict ranges from entirely independent of race to entirely discriminatory against Black people. 
+In their October 2013 article analyzing the effects of relaxing federal mandatory sentencing guidelines, Sonja B. Starr and M. Marit Rehavi criticized studies that analyzed disparities in sentencing and controlled for case characteristics at the time of sentencing. Starr and Rehavi observed that “pre-sentencing decision-making can have substantial sentence-disparity consequences.” In applying Mummolo et al’s methodology to sentencing analysis, I consider Starr and Rehavi’s statement and in particular look at how observed sentencing disparities vary when the pre-sentencing conviction decision ranges from entirely independent of race to entirely discriminatory against Black people. 
 
 ### Variables 
-I used data from the US Sentencing Commission’s Monitoring of Federal Criminal Sentences dataset from 2000 to 2008.^[cite] I chose this dataset because it was used in a 2011 paper about federal sentencing disparities, which identified selection bias as a main limitation.^[Hagen, Courtney 2011, ‘Bias in the federal judicial system: do sentencing disparities exist in the Southwest Border region of the United States?’, MPP thesis, Georgetown University, Washington, D.C.]  
+I used data from the US Sentencing Commission’s Monitoring of Federal Criminal Sentences dataset from 2000 to 2008.^[https://www.icpsr.umich.edu/web/ICPSR/series/83] I chose this dataset because it was used in a 2011 paper about federal sentencing disparities, which identified selection bias as a main source of estimation error.^[Hagen, Courtney 2011, ‘Bias in the federal judicial system: do sentencing disparities exist in the Southwest Border region of the United States?’, MPP thesis, Georgetown University, Washington, D.C.] To make the size of the dataset more manageable, I performed the first part of my analysis using only data from years 2006 to 2008. For these three years, the Sentencing Commission provides data on 165,416 cases involving 45,239 Black defendants and 120,177 white defendants. 
 
 The following is a description of the variables considered in modeling sentence outcomes. Please see ______ for a description of how this data was prepared from the original US Sentencing Commission dataset. 
 
 Response variable: 
 
-* SENTENCE: Total prison sentence received, in months. In Mummolo et al's treatment effect model, the response functions are logit predictions of the probability that the outcome exceeds a certain threshold. I set the thresholds to be the first, second, and third quartiles of the SENTENCE data. For years 2006 - 2008, the first quartile is 15 months, the median is 37 months, and the third quartile is 77 months. 
+* SENTENCE: Total prison sentence received, in months. In Mummolo et al's treatment effect model, the response functions are logit predictions of the probability that the outcome exceeds a certain threshold. I set the thresholds to be the first, second, and third quartiles of the SENTENCE data. For years 2006 to 2008, the first quartile is 15 months, the median is 37 months, and the third quartile is 77 months. 
 
 Treatment: 
 
@@ -50,7 +58,7 @@ Covariates:
 
 * NOCOUNTS: Number of counts of conviction. This is a positive integer. 
 
-* POINTS: Non-negative integer count of criminal history points, which are related to the severity of a person's criminal history. 
+* POINTS: Non-negative integer count of criminal history points, which are related to the severity of a person's criminal history.
 
 * TRIAL: 1 if conviction was determined by a trial, 0 if it was settled by a plea agreement. 
 
@@ -81,40 +89,47 @@ predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC'
 df <- na.omit(df[, c(outcome, predictors)])
 ```
 
-
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #means of all variables except prim offense 
 df$race1 <- ifelse(df$race=="black", 1, 0)
-mean_table <- 
+means <- 
   colMeans(df[,c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'SWB', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'YR2007', 'YR2006', 'race1')])
+mins <- c(min(df$AGE), rep(NA, 13), min(df$NOCOUNTS), min(df$POINTS), rep(NA, 4))
+maxes <- c(max(df$AGE), rep(NA, 13), max(df$NOCOUNTS), max(df$POINTS), rep(NA, 4))
+sds <- c(sd(df$AGE), rep(NA, 13), sd(df$NOCOUNTS), sd(df$POINTS), rep(NA, 4))
+summary_table <- round(cbind(means, mins, maxes, sds), 3)
 
 library(kableExtra)
-kable(x=mean_table, 
+kable(x=summary_table, 
       format = "html", 
-      col.names = "Mean", 
-      caption="Variable Means")  %>%
+      col.names = c("Mean", "Minimum", "Maximum", "Standard Deviation"), 
+      caption="Summary Statistics, 2006-2008 Cases", 
+      knitr.kable.NA = '')  %>%
    kable_classic(full_width = FALSE, html_font = "Cambria", font_size=14, position="float_right")
 
 #primary offense frequency table 
 offense_freq <- df$PRIM_OFFENSE %>% table %>% sort(decreasing = TRUE) 
-kable(x=offense_freq, 
-      format = "html", 
-      caption = "Primary Offense Frequencies") %>% 
+kable(
+  list(offense_freq[1:16], offense_freq[17:32]),
+  format = "html", 
+  caption = "Offense Frequencies", 
+  booktabs = TRUE) %>% 
   kable_classic(full_width = FALSE, html_font = "Cambria", font_size=14)
-
 ```
 
-# Summary of Knox, Lowe, and Mummolo 
-Mummolo et al define $Y_i$ as an indicator of whether force was used in encounter i. I define $Y_i$ as an indicator of whether the sentence length exceeds a specified threshold. $D_i$ represents the race of the individual in the ith encounter. Mummolo et al clarify that the causal inference task is *not* to estimate difference in the outcome of a white individual if they were Black, which introduces an impossible counterfactual situation. Instead, the goal is to estimate the difference in the outcome of the ith encounter if it involved a different person with a different racial identity, holding observable covariates constant.
+## Summary of Knox, Lowe, and Mummolo 
+Mummolo et al define $Y_i$ as an indicator of whether force was used in encounter i. I define $Y_i$ as an indicator of whether the sentence exceeds a specified length. $D_i$ represents the race of the individual in the ith encounter. Mummolo et al clarify that the causal inference task is *not* to estimate difference in the outcome of a white individual if they were Black, which introduces an impossible counterfactual situation. Instead, the goal is to estimate the difference in the outcome of the ith encounter if it involved a *different person* with a different racial identity, holding observable covariates constant.
 
-Central to Mummolo et al's analysis is the mediating variable $M_i$, which indicates whether an encounter is included in the sample. $M_i$ is a function of $D_i$; in other words, it is a post-treatment variable. For Mummolo et al, $M_i(d)$ indicates "whether encouter i would have resulted in a stop if the civilian were of race $d$" (5). 
+Central to Mummolo et al's analysis is the mediating variable $M_i$, which indicates whether an encounter is included in the sample. $M_i$ is a function of $D_i$; in other words, it is a post-treatment variable. For Mummolo et al, $M_i(d)$ indicates "whether encounter i would have resulted in a stop if the civilian were of race $d$" (5). 
 
 I define $M_i$ as an indicator of whether or not a case was included in the sample, i.e. whether an individual received *any* counts of conviction versus none.  
 
 ### Naive Estimator 
-Mummolo et al's criticize standard techniques for estimating racial disparities in police use of force for violating the Stable Unit Treatment Value Assumption (SUTVA) by estimating the difference in means of groups whose potential outcomes are not independent of treatment. They define a naive estimator: $\hat\Delta = \overline{Y_i|D_i=1, M_i=1} - \overline{Y_i|D_i=0, M_i=1}$ (5).  They implicitly condition on covariates $X_i$. This quantity is the mean outcome for recorded cases involving Black people minus the mean outcome for recorded cases involving white people. The problem is that these groups of cases are not necessarily comparable. In the sentencing context, conditioning on inclusion in the sample of federally cases, potential sentences may systematically differ for people of different races. For example, we could tell a story where white people only get convicted of a particular firearms charge if they fire a gun, whereas Black people get convicted just for possessing a weapon. Then, conditioning on inclusion in the sample (Mi=1), the probability that the Black person’s sentence would have exceeded a particular length if they were white is different from the probability that the white person’s sentence will exceed the threshold. This is to say that $Y_i$ is *not* necessarily independent of $D_i|M_i$. 
+Mummolo et al criticize standard techniques for estimating racial disparities in police use of force. They say that common methods violate the Stable Unit Treatment Value Assumption (SUTVA) by estimating the difference in means of groups whose potential outcomes are not independent of treatment. Mummolo et al define a naive estimator: $\hat\Delta = \overline{Y_i|D_i=1, M_i=1} - \overline{Y_i|D_i=0, M_i=1}$ (5).  They implicitly condition on covariates $X_i$. The naive estimator is the mean outcome for recorded cases involving Black people minus the mean outcome for recorded cases involving white people. The problem is that these groups of cases are not necessarily comparable. In the sentencing context, conditioning on inclusion in the sample of federally cases, potential sentences may systematically differ for people of different races. For example, we could tell a story where white people only get convicted of a particular firearms charge if they fire a gun, whereas Black people get convicted just for possessing a weapon. Then, conditioning on inclusion in the sample ($M_i$=1), the probability that the Black person’s sentence would have exceeded a particular length if they were white is different from the probability that the white person’s sentence will exceed that threshold. This is to say that $Y_i$ is *not* necessarily independent of $D_i|M_i$. 
 
-I computed the naive estimators for the difference in probabilities that Black vs white individuals' sentence lengths exceed the 1st, 2nd, and 3rd quartiles. I estimated the response probabilities as a logistic regression over race and the covariates described above. I computed the difference in means for a given threshold as the mean of the predicted probabilities when each individual's race is set to "black" minus the mean of the predicted probabilities when each individual's race is set to "white." For each threshold, there is a positive treatment effect. The question is how the magnitude of this effect compares to the estimated treatment effect using a plausible value of $\rho$.
+I computed the naive estimators for the difference in probabilities that Black vs white individuals' sentence lengths exceed the 1st, 2nd, and 3rd quartiles. I estimated the response probabilities using a logistic regression where explanatory variables are race and the covariates described above. I computed the difference in means for a given threshold as the mean of the predicted probabilities when each individual's race is set to "black" minus the mean of the predicted probabilities when each individual's race is set to "white." Note that this computation wrongly assumes that controlling for $X_i$, every case in the sample has the same set of potential outcomes $Y_i(0), Y_i(1)$. 
+
+For each threshold, there is a positive treatment effect. The question that I hope to answer is how the magnitude of this effect compares to the estimated treatment effect using a plausible value of $\rho$. 
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 sentence.quartiles <- c(
@@ -136,7 +151,7 @@ thresholds <- c(77, 37, 15)
 fit1 <- glm(c(SENTENCE > thresholds[3]) ~ AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + SWB + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL +  PRIM_OFFENSE + YR2007 + YR2006 + race, family="binomial", data=df)
 
 #df[which(predict(fit1, df, type="response") >= 0.999), ]
-# Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred - I think this is because there are some extreme sentences far above 15 
+# Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred. I believe this is because there are some extreme sentences far above 15. 
 
 #As a sanity check, there are no predictions exactly equal to 1. 
 #df[which(predict(fit1, df, type="response") >= 1),]
@@ -149,10 +164,8 @@ df_w <- df
 df_w$race <- "white"
 
 preds_b <- predict(fit1, newdata=df_b, type="response")
-#summary(preds_b)
 
 preds_w <- predict(fit1, newdata=df_w, type="response")
-#summary(preds_w)
 
 naive_ate_1stq <- mean(preds_b) - mean(preds_w) 
 
@@ -170,7 +183,7 @@ naive_ate_table <- cbind(sentence.quartiles, round(c(naive_ate_3rdq, naive_ate_m
 kable(x=naive_ate_table, 
       format = "html", 
       col.names = c("Sentence Threshold (Months)", "Mean Difference in Probability of Exceeding Threshold"), 
-      caption = "Naive ATEs")  %>%
+      caption = "Naive Sentencing Disparity, 2006-2008 Cases")  %>%
    kable_classic(full_width = FALSE, html_font = "Cambria", font_size=14)
 ```
 
@@ -206,45 +219,68 @@ This says that in a case where both a Black and white person would be convicted,
 
 * (b) With respect to potential outcomes: $Y_i(d,m) {\perp \!\!\! \perp} D_i|M_i(0) = m^\prime, M_i(1)=m^{\prime \prime}, X_i$. 
 
-Generally, Assumption 4(a) asserts that $X_i$ includes all relevant covariates that might be correlated with race and with the mediating conviction indicator $M_i$. Although it's impossible to be sure of including all the relevant covariates, I've information about the severity of the offense and the background of the individual involved. I take 4(a) to be a reasonable assumption. 
+Generally, Assumption 4(a) asserts that $X_i$ includes all relevant covariates that might be correlated with race and with the mediating conviction indicator $M_i$. Although my model includes information about the severity of the offense and characteristics of the individual involved, it seems unlikely that I've included all the background information necessary for convictions to be uncorrelated with race conditional on $X_i$. For example, my $X_i$ does not include information about the defendant's income. Income likely influences the neighborhood that this person lives in, which in turn affects their likelihood of being arrested for a particular activity, and subsequently whether they are convicted ($M_i$) and included in the sentencing dataset. More broadly, the ubiquity of systemic racism and its impact on people throughout their lives makes it extremely difficult to state that the conviction experiences of Black vs white individuals are the same controlling for a mere handful of covariates. In brief, 4(a) may not hold for this dataset.   
 
-4(b) says that given that a case belongs to a particular principal stratum and controlling for the observable covariates, $Y_i$ is independent of $D_i$. Quoting Mummolo et al: "conditional on $X_i$, civilian race is 'as good as randomly assigned' to encounters, and officers encounter minority civilians in circumstances that are objectively no different from white encounters" (8). 
+4(b) says that given that a case belongs to a particular principal stratum, and controlling for the observable covariates, $Y_i$ is independent of $D_i$. Mummolo et al say that "conditional on $X_i$, civilian race is 'as good as randomly assigned' to encounters, and officers encounter minority civilians in circumstances that are objectively no different from white encounters" (8). 
 
 Unfortunately, I believe that defining $M_i$ as whether or not an individual receives any counts of conviction may results in a violation of Assumption 4(b). This is because unlike Mummolo et al's binary mediating variable of whether an individual was stopped by police, whether or not a case resulted in a conviction does not fully describe the conviction decision, which is a post-treatment variable. In particular, suppose $M_i(0) = M_i(1) = 1$, so the ith case is in the always-convict group. Suppose that for Black individuals, this case results in a felony conviction, whereas white individuals receive misdemeanor convictions. Then within the always-convict stratum, race is *not* randomly assigned. Treated observations (cases involving Black folks) tend to have longer potential sentences. 
 
-Under what conditions is Assumption 4(b) plausible for sentencing data? One possibility is to assume that $X_i$ captures the difference in offense severity among the sample population. In particular, controlling for primary conviction offense and the number of counts of conviction should place observations into roughly comparable groups with respect to offense severity. But this seems like a rather strong assumption given how much is unknown about the prosecution process. 
+Under what conditions is Assumption 4(b) plausible for sentencing data? One possibility is to assume that $X_i$ captures the difference in conviction decisions among the sample population. In particular, controlling for primary conviction offense and the number of counts of conviction should place observations into roughly comparable groups with respect to offense severity. The problem with this is that these conviction-related covariates (TRIAL, NOCOUNTS, and PRIM_OFFENSE) are post-treatment variables. Including post-treatment variables as predictors may result in biased response functions and treatment effect estimators. *explain why* 
 
-I propose that subsetting the 2000-2008 dataset to look just at cases that received immigration convictions makes $M_i$ more compatible with Mummolo et al's model. Looking just at immigration cases, $M_i$ is an indicator of whether the case resulted in an immigration conviction. While there are multiple possible immigration-related federal convictions,^[https://sgp.fas.org/crs/homesec/IF11410.pdf] these convictions are much more similar in severity than the range of convictions in the original dataset. The interquartile range of sentences for immigration offenses ranges from 10 to 37 months, reflecting that these offenses are regarded as relatively similar in severity. Compare this to the range of sentences for drug trafficking, which has a first quartile of 30 months and a third quartile of 120 months. 
+Alternatively, we can try to choose a more subset of the data so that conviction decisions are more homogenous and potential outcomes more similar, controlling for the set of pre-treatment covariates. 
 
-*note that using only immigration convictions reduces n_treated to 4125*
+I will discuss bounds computed for the following four variations on the full dataset and model: 
+
+* $ATE_{M=1}$ for all sentencing data from 2006 to 2008, using all covariates
+
+    - This is the quantity that I originally computed, without interrogating potential issues with the $M_i$ and post-treatment covariates.
+
+* $ATE_{M=1}$ for all sentencing data from 2006 to 2008, using only pre-treatment covariates 
+
+    - This model still may violate Assumption 4. *explain?*
+
+* $ATE_{M=1}$ for immigration sentencing data from 2000 to 2008, using all covariates
+
+    - I propose that subsetting the 2000-2008 dataset to look just at cases that received immigration convictions makes $M_i$ more compatible with Assumption 4, although there may still be a violation. Looking just at immigration cases, $M_i$ indicates whether a case resulted in an immigration conviction. While there are multiple possible immigration-related federal convictions,^[https://sgp.fas.org/crs/homesec/IF11410.pdf] these convictions are much more similar in severity than the 35 conviction categories in the original dataset. The interquartile range of sentences for immigration offenses ranges from 10 to 37 months, reflecting that their relatively similar severity. Compare this to the range of sentences for drug trafficking, which has a first quartile of 30 months and a third quartile of 120 months. 
+
+* $ATE_{M=1}$ for immigration sentencing data from 2000 to 2008, using only pre-treatment covariates 
+
+Note that considering only immigration cases, the total sample size is 96,969, with 4,125 cases involving Black people and 92,844 involving white people. We will see that the bounds and confidence intervals for $ATE_{M=1}$ of the immigration cases are very wide. Based on Mummolo et al's bounds equation, the large value of $Pr(D_i = 0 | M_i=1)$ seems to contribute to the low lower bound on $ATE_{M=1}$. Additionally, the small value of $n_{treated}$ probably contributed to the wide confidence intervals for the immigration data. 
+
+Below are the variable means and naive ATEs for immigration cases only. 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 alldat <- combine[combine$RACE %in% c("black", "white"), ]
 alldat$RACE <- ifelse(alldat$RACE == "black", 1, 0)
 
 alldat$race <- factor(alldat$RACE, labels = races)
-offense_freq <- alldat$PRIM_OFFENSE %>% table %>% sort(decreasing = TRUE) 
-# kable(x=offense_freq,
-#       format = "html") %>%
-#   kable_classic(full_width = FALSE, html_font = "Cambria", font_size=14)
+
+#subset to immigration cases 
 imm <- alldat[alldat$PRIM_OFFENSE=="immigration", ]
 
+#remove incomplete cases 
 imm <- na.omit(imm[, c('SENTENCE', 'AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'SWB', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'YR2007', 'YR2006', 'YR2005', 'YR2004', 'YR2003','YR2002','YR2001', 'YR2000', 'RACE')])
 
-mean_table_imm <- 
+#table of means of immigration data 
+imm_means <- 
   colMeans(imm[ ,c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'SWB', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'YR2007', 'YR2006', 'YR2005', 'YR2004', 'YR2003','YR2002','YR2001', 'YR2000', 'RACE')])
+imm_mins <- c(min(imm$AGE), rep(NA, 13), min(imm$NOCOUNTS), min(imm$POINTS), rep(NA, 10))
+imm_maxes <- c(max(imm$AGE), rep(NA, 13), max(imm$NOCOUNTS), max(imm$POINTS), rep(NA, 10))
+imm_sds <- c(sd(imm$AGE), rep(NA, 13), sd(imm$NOCOUNTS), sd(imm$POINTS), rep(NA, 10))
+imm_summary_table <- round(cbind(imm_means, imm_mins, imm_maxes, imm_sds), 3)
 
-kable(x=mean_table_imm, 
+kable(x=imm_summary_table, 
       format = "html", 
-      col.names = "Mean", 
-      caption="Variable Means")  %>%
-   kable_classic(full_width = FALSE, html_font = "Cambria", font_size=14, position="float_right")
+      col.names = c("Mean", "Minimum", "Maximum", "Standard Deviation"), 
+      caption="Summary Statistics, Immigration Cases", 
+      knitr.kable.NA = '')  %>%
+   kable_classic(full_width = FALSE, html_font = "Cambria", font_size=14)
 
-kable(x=table(imm$RACE),
-      format = "html", 
-      col.names=c("Race", "N"),
-      caption="Race among People with Immigration Convictions")  %>%
-   kable_classic(full_width = FALSE, html_font = "Cambria", font_size=14, position="float_right")
+# kable(x=table(imm$RACE),
+#       format = "html", 
+#       col.names=c("Race", "N"),
+#       caption="Race among People with Immigration Convictions")  %>%
+#    kable_classic(full_width = FALSE, html_font = "Cambria", font_size=14, position="float_right")
 
 drugs <- alldat[alldat$PRIM_OFFENSE %in% c("drug trafficking"), ]
 drugs <- na.omit(drugs[, c(outcome, predictors)])
@@ -254,7 +290,63 @@ guns <- alldat[alldat$PRIM_OFFENSE %in% c("firearms"), ]
 #table(drugs$race)
 #table(guns$race) 
 #firearms convictions involve more Black folks than white - clearly very disproportionate rate of conviction to the population. also, seems like if I were to do this, sentencing district would be important because guns are treated so differently around the country 
+```
 
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#compute naive immigration ATEs 
+sentence.quartiles <- c(
+  'above 37', 
+  'above 21', 
+  'above 10'
+)
+
+#add a categorical sentence quartiles variable to the dataframe 
+imm <- imm %>% mutate ( # https://dplyr.tidyverse.org/reference/mutate.html
+  sentence.quartiles = case_when( # https://dplyr.tidyverse.org/reference/case_when.html 
+    SENTENCE > 37  ~ 'above 37', 
+    SENTENCE > 21  ~ 'above 21',
+    SENTENCE > 10 ~ 'above 10'
+  ))
+
+thresholds <- c(37, 21, 10) 
+
+### Naive difference in probability that sentence exceeds first quartile 
+fit1 <- glm(c(SENTENCE > thresholds[3]) ~ RACE + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + SWB + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2007 + YR2006 + YR2005 + YR2004 + YR2003 + YR2002 + YR2001 + YR2000, family="binomial", data=imm)
+#Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+#imm[which(predict(fit1, imm, type="response") >= 0.999), ]
+# all observations with probability near 1 were far above 1st quartile
+
+#As a sanity check, there are no predictions exactly equal to 1. 
+#imm[which(predict(fit1, imm, type="response") >= 1),]
+imm_b <- imm
+#set race as Black for all observations 
+imm_b$RACE <- 1
+imm_w <- imm 
+#set race as white for all observations 
+imm_w$RACE <- 0
+
+preds_b <- predict(fit1, newdata=imm_b, type="response")
+
+preds_w <- predict(fit1, newdata=imm_w, type="response")
+
+naive_ate_1stq <- mean(preds_b) - mean(preds_w) 
+
+fit2 <- glm(c(SENTENCE > thresholds[2]) ~ RACE + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + SWB + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2007 + YR2006 + YR2005 + YR2004 + YR2003 + YR2002 + YR2001 + YR2000, family="binomial", data=imm)
+
+naive_ate_median <- mean(predict(fit2, newdata=imm_b, type="response")) - mean(predict(fit2, newdata=imm_w, type="response"))
+
+fit3 <- glm(c(SENTENCE > thresholds[1]) ~ RACE + AGE + MALE + HSGED + SOMEPOSTHS + POSTHSDEGREE + HISPANIC + USCITIZEN + SWB + CRIMINAL + CATEGORY2 + CATEGORY3 + CATEGORY4 + CATEGORY5 + CATEGORY6 + NOCOUNTS + POINTS + TRIAL + YR2007 + YR2006 + YR2005 + YR2004 + YR2003 + YR2002 + YR2001 + YR2000, family="binomial", data=imm)
+
+naive_ate_3rdq <- mean(predict(fit3, newdata=imm_b, type="response")) - mean(predict(fit3, newdata=imm_w, type="response"))
+
+#table of naive ATEs 
+naive_ate_table <- cbind(sentence.quartiles, round(c(naive_ate_3rdq, naive_ate_median, naive_ate_1stq), 4))
+
+kable(x=naive_ate_table, 
+      format = "html", 
+      col.names = c("Sentence Threshold (Months)", "Mean Difference in Probability of Exceeding Threshold"), 
+      caption = "Naive Sentencing Disparity, Immigration Cases")  %>%
+   kable_classic(full_width = FALSE, html_font = "Cambria", font_size=14)
 ```
 
 
@@ -262,26 +354,7 @@ guns <- alldat[alldat$PRIM_OFFENSE %in% c("firearms"), ]
 
 Mummolo et al define $\rho$ as the probability that a case involving a Black person would not have been included in the sample if the person were white (3). They show that given a value for $\rho$, it is possible to compute non-parametric bounds for $ATE_{M=1}$ and a point estimate for $ATT_{M=1}$. 
 
-Mummolo et al define $ATE_{M=1}$ as $E[Y_i(1, M_i(1))|M_i=1] - E[Y_i(0, M_i(0))|M_i=1]$. This estimator is the difference in the probability of sentence length exceeding the threshold among the sample population, considering what would happen if each case involved a Black person, versus the probability of sentence length exceeding the threshold if each case involved a white person. *clarify this definition depending on definition of $M_i$* 
-
-Below, I attempted to decompose $ATE_{M=1}$ with respect to $D_i$, $M_i$, implicitly conditioning on $X_i$. 
-\[
-\begin{align*}
-ATE_{M=1} = E[Y_i(1, M_i(1))|M_i=1] - E[Y_i(0, M_i(0))|M_i=1] = \\
-%Black, always convict
-E[Y_i(1, M_i(1))|D_i = 1, M_i(1) = 1, M_i(0) = 1]P(M_i(0) = 1 | M_i(1) = 1, D_i = 1)\\ 
-%white, always convict 
-+ E[Y_i(1, M_i(1))|D_i = 0, M_i(1) = 1, M_i(0) = 1]P(M_i(1) = 1 | M_i(0) = 1, D_i = 0)\\ 
-%Black, anti-Black
-+ E[Y_i(1, M_i(1))|D_i = 1, M_i(1) = 1, M_i(0) = 0]P(M_i(0) = 0 | M_i(1) = 1, D_i = 1)\\  
-%Black, always convict 
-- E[Y_i(0, M_i(0))|D_i = 1, M_i(1) = 1, M_i(0) = 1]P(M_i(1) = 1 | M_i(0) = 1, D_i = 1) \\
-%white, always convict 
-- E[Y_i(0, M_i(0))|D_i = 0, M_i(1) = 1, M_i(0) = 1]P(M_i(1) = 1 | M_i(0) = 1, D_i = 0)
-\end{align*}
-\]
-
-*if the above is correct, then write bias expression for naive ATE*
+Mummolo et al define $ATE_{M=1}$ as $E[Y_i(1, M_i(1))|M_i=1] - E[Y_i(0, M_i(0))|M_i=1]$. This estimator is the difference in the probability of sentence length exceeding the threshold among the sample (convicted) population, considering what would happen if each case involved a Black person, versus the probability of sentence length exceeding the threshold if each case involved a white person.
 
 Mummolo et al provide the following formula for computing nonparametric sharp bounds on $ATE_{M=1}$ for a given $\rho$ (11). 
 
@@ -304,10 +377,9 @@ ATT_{M=1} = \mathbb{E}[\hat{\Delta}] + \rho\mathbb{E}[Y_i|D_i=0, M_i=1]
 \end{align*}
 \]
 
-Mummolo et al also compute $ATT_{M=1}$ using the same Monte Carlo procedure as $ATE_{M=1}$, simulating noisy coefficient observations and averaging treatment effects over chunks of the data. 
+Mummolo et al compute $ATT_{M=1}$ using a similar Monte Carlo procedure to $ATE_{M=1}$, simulating noisy coefficient observations and averaging treatment effects over chunks of the data. Given a value of $\rho$, we can get a point estimate of $ATT_{M=1}$ from the sample. 
 
 ### Results for All Convictions, 2006-2008
-
 ```{r, echo=FALSE}
 #replication of KLM's Table 1 
 ndraws <- 5000
@@ -382,6 +454,35 @@ table.base_mod %>%
   kable_classic(full_width = F, html_font = "Cambria")
 ```
 
+Table 1 and Table 2 compare the naive ATE to the bounds and confidence intervals for $ATE_{M=1}$ when $\rho$ = 0.32. This is the value of $\rho$ that Mummolo et al consider to be a reasonable estimate of the true proportion of racially discriminatory stops, based on a 2007 study of New York's stop and frisk policy by Gelman, Fagan, and Kiss. I'm assuming that the true proportion of racially discriminatory federal convictions is exactly the same as the true proportion of racially discriminatory stops in New York City. This is unrealistic, but I think this choice of $\rho$ can still provide a rough idea of the bias of the naive ATE given that some proportion of cases would not have been included in the sample if the defendant was white. 
+
+Table 1 shows that for each sentence length threshold, the entire 95% confidence interval for $ATE_{M=1}$ exceeds the naive ATE. In other words, the confidence interval that contains the true value of $ATE_{M=1}$ 95% of the time does not include $\hat{\Delta}$, confirming that $\hat{\Delta}$ underestimates the true racial disparity in sentence lengths. 
+
+![alt text](/Users/abbysteckel/Desktop/S&DS_491/output/thresh77_2006-08.png "Title")
+*DISCUSS PLOTS* 
+
+*REPLACE TABLE 2 WITH PRE-TREATMENT VARIABLES MODEL*
+Table 2 compares the naive ATE to the $ATE_{M=1}$ when the response functions involve only the treatment variable (race). Without covariate adjustment, every value of the naive ATE and the $ATE_{M=1}$ intervals is larger than in Table 1. As shown in Table 3, race is positively correlated with covariates including POINTS, which reflects a person's criminal record, and NOCOUNTS and CATEGORY6, which reflect the severity of the current case. It makes sense that when adjusting for covariates that are correlated with the treatment variable and the response, the estimated treatment effect will be smaller relative to the model with no covariates. 
+
+```{r, echo=FALSE, message=FALSE}
+mean_black <- c(mean(df$POINTS[df$race1==1]), mean(df$NOCOUNTS[df$race1==1]), mean(df$CATEGORY6[df$race1==1]))
+mean_white <- c(mean(df$POINTS[df$race1==0]), mean(df$NOCOUNTS[df$race1==0]), mean(df$CATEGORY6[df$race1==0]))
+p.vals <- c(t.test(df$race1, df$POINTS)$p.value, t.test(df$race1, df$NOCOUNTS)$p.value, t.test(df$race1, df$CATEGORY6)$p.value)
+
+t.test.table <- cbind(mean_black, mean_white, p.vals)
+row.names(t.test.table) <- c("POINTS", "NOCOUNTS", "CATEGORY6")
+
+t.test.table %>% 
+  kbl(caption="Table 3: Race is Predictive of Covariates", 
+      format = "html", 
+      digits = 3,
+      row.names = T,
+      col.names = c("$Mean_{D_i=1}$", "$Mean_{D_i=0}$", "P Value")
+      ) %>%  
+  kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
 
 ### Results for Immigration Convictions
 ```{r, echo=FALSE}
@@ -421,35 +522,7 @@ table.full_mod <- cbind(naive.ate, lower.bound, upper.bound, lower.ci, upper.ci)
 rownames(table.full_mod) <- c("over 37 months", "over 21 months", "over 10 months")
 
 table.full_mod %>% 
-  kbl(caption="Table 1: Average Treatment Effect among Immigration Convictions ($ATE_{M=1}$), by Sentence Quartile, Full Model Specification", 
-      format = "html", 
-      digits = 3, 
-      row.names = T, 
-      col.names = c("Naive ATE", "Lower Bound", "Upper Bound", "Lower CI", "Upper CI")
-      ) %>%  
-  kable_classic(full_width = F, html_font = "Cambria")
-
-### Base model 
-naive.3rdQ.base <- results[results$qoi=="ates" & results$thresh ==1 &results$rho==0 &results$mod.type =="base", ]
-naive.med.base <- results[results$qoi=="ates" & results$thresh ==2 &results$rho==0 &results$mod.type =="base", ]
-naive.1stQ.base <- results[results$qoi=="ates" & results$thresh ==3 &results$rho==0 &results$mod.type =="base", ]
-
-naive.ate.base <- c(naive.3rdQ.base$est, naive.med.base$est, naive.1stQ.base$est)
-
-ate.bounds.3rdQ.base <- results[results$qoi=="ates" & results$thresh ==1 &results$rho == rho.gfk &results$mod.type =="base", ]
-ate.bounds.med.base <- results[results$qoi=="ates" & results$thresh ==2 &results$rho == rho.gfk &results$mod.type =="base", ]
-ate.bounds.1stQ.base <- results[results$qoi=="ates" & results$thresh ==3 &results$rho == rho.gfk &results$mod.type =="base", ]
-
-lower.bound.base <- c(ate.bounds.3rdQ.base$min, ate.bounds.med.base$min, ate.bounds.1stQ.base$min)
-upper.bound.base <- c(ate.bounds.3rdQ.base$max, ate.bounds.med.base$max, ate.bounds.1stQ.base$max)
-lower.ci.base <- c(ate.bounds.3rdQ.base$min.cilo, ate.bounds.med.base$min.cilo, ate.bounds.1stQ.base$min.cilo)
-upper.ci.base <- c(ate.bounds.3rdQ.base$max.cihi, ate.bounds.med.base$max.cihi, ate.bounds.1stQ.base$max.cihi)
-  
-table.base_mod <- cbind(naive.ate.base, lower.bound.base, upper.bound.base, lower.ci.base, upper.ci.base)
-rownames(table.base_mod) <- c("over 37 months", "over 21 months", "over 10 months")
-
-table.base_mod %>% 
-  kbl(caption="Table 2: Average Treatment Effect among Immigration Convictions ($ATE_{M=1}$), by Sentence Quartile, No Covariates", 
+  kbl(caption="Table 4: Average Treatment Effect among Immigration Convictions ($ATE_{M=1}$), by Sentence Quartile, Full Model Specification", 
       format = "html", 
       digits = 3, 
       row.names = T, 
@@ -462,15 +535,8 @@ table.base_mod %>%
 
 *explain why ATT < ATE*
 
-*Discuss difference between ATE_M=1 for different sentence thresholds*
+*explain why it is possible for ATE_M=1 to exceed the proportion of Black folks in the sample*
 
-*mention that I use the same rho estimate as KLM, which is based on police stops and not sentencing*
+*Discuss difference between ATE_M=1 for different sentence thresholds (there isn't really a difference)*
 
-*compare results for all convictions vs immigration subset*
-
-
-
-
-
-
-
+*compare results for all convictions vs immigration subset. mainly just observe that the immigration data is more homogenous*
