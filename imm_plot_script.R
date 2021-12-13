@@ -166,8 +166,8 @@ results$race.label <- factor(
 
 results$mod.label <- factor(
   results$mod.type,
-  levels = c('base', 'full'),
-  labels = c('Baseline specification', 'full specification'),
+  levels = c('pretreat', 'full'),
+  labels = c('pretreatment covars', 'all covars'),
   ordered = TRUE
 )
 
@@ -184,16 +184,16 @@ annotations$race.label <- factor(
 ##########################################
 results$rho <- round(results$rho, 2)
 
-## naive atest, baseline specification
-naive.black.base <- results[
-  results$mod.type == 'base' &
+## naive atest, pretreatment specification
+naive.black.pretreat <- results[
+  results$mod.type == 'pretreat' &
     results$treat.race == 'black' &
     results$rho == 0 &
     results$qoi == 'atest',
 ]
-## bias-corrected atest, baseline specification
-biascorrect.black.base <- results[
-  results$mod.type == 'base' &
+## bias-corrected atest, pretreatment specification
+biascorrect.black.pretreat <- results[
+  results$mod.type == 'pretreat' &
     results$treat.race == 'black' &
     results$rho == round(black.rs.gfk, 2) &
     results$qoi == 'atest',
@@ -216,12 +216,12 @@ biascorrect.black.full <- results[
 
 
 
-naive.excess <- naive.black.base$est * naive.black.base$n.minority
+naive.excess <- naive.black.pretreat$est * naive.black.pretreat$n.minority
 
-biascorrect.excess <- biascorrect.black.base$est * biascorrect.black.base$n.minority
+biascorrect.excess <- biascorrect.black.pretreat$est * biascorrect.black.pretreat$n.minority
 
-excess.base <- cbind('naive' = naive.excess, 'bias-corrected' = biascorrect.excess)
-excess.base
+excess.pretreat <- cbind('naive' = naive.excess, 'bias-corrected' = biascorrect.excess)
+excess.pretreat
 
 naive.excess <- naive.black.full$est * naive.black.full$n.minority
 
@@ -234,16 +234,16 @@ excess.full
 ## ATE_M=1 interpretation for main text ##
 ##########################################
 
-## naive ates, baseline specification
-naive.black.base <- results[
-  results$mod.type == 'base' &
+## naive ates, pretreat specification
+naive.black.pretreat <- results[
+  results$mod.type == 'pretreat' &
     results$treat.race == 'black' &
     results$rho == 0 &
     results$qoi == 'ates',
 ]
-## bias-corrected ates, baseline specification
-bounds.black.base <- results[
-  results$mod.type == 'base' &
+## bias-corrected ates, pretreat specification
+bounds.black.pretreat <- results[
+  results$mod.type == 'pretreat' &
     results$treat.race == 'black' &
     results$rho == round(black.rs.gfk, 2) &
     results$qoi == 'ates',
@@ -264,12 +264,12 @@ bounds.black.full <- results[
     results$qoi == 'ates',
 ]
 
-ates.black.base <-
-  naive.black.base[,c('treat.race', 'thresh.label')]
-ates.black.base$naive <- round(1000 * naive.black.base$est, 1)
-ates.black.base$min <- round(1000 * bounds.black.base$min, 1)
-ates.black.base$max <- round(1000 * bounds.black.base$max, 1)
-ates.black.base
+ates.black.pretreat <-
+  naive.black.pretreat[,c('treat.race', 'thresh.label')]
+ates.black.pretreat$naive <- round(1000 * naive.black.pretreat$est, 1)
+ates.black.pretreat$min <- round(1000 * bounds.black.pretreat$min, 1)
+ates.black.pretreat$max <- round(1000 * bounds.black.pretreat$max, 1)
+ates.black.pretreat
 
 ates.black.full <-
   naive.black.full[,c('treat.race', 'thresh.label')]
