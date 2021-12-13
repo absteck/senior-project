@@ -379,7 +379,15 @@ if(!file.exists('mods_full_correct_blackwhite_sentencing.rds')){
   mods.full.correct <- readRDS('mods_full_correct_blackwhite_sentencing.rds')
 }
 
-## predicted race (white vs not white) of civilian in encounter, with covariates
+#predicted race of civilian in encounter, with only pre-treatment covariates 
+mod.race.pretreat <- speedglm.wfit(y = df$race == 'white',
+                               X = X.pretreat.race,
+                               family = binomial(link = 'logit'),
+                               sparse = TRUE,
+                               trace = TRUE
+)
+
+## predicted race (white vs not white) of civilian in encounter, with all covariates
 mod.race.full <- speedglm.wfit(y = df$race == 'white',
                                   X = X.full.race,
                                   family = binomial(link = 'logit'),
@@ -443,11 +451,12 @@ if (!file.exists(results.fname)){
       
       ### compute ates ###
       
-      if (mod.type %in% c('full', 'pretreat')){
+      if (mod.type == "full"){
         D0.prob <-
-          1 / (1 + exp(-(as.numeric(X.full.race %*% coef(mod.race.full))))) #covariate-adjusted probability of being white
+          1 / (1 + exp(-(as.numeric(X.full.race %*% coef(mod.race.full))))) 
       } else {
-        D0.prob <- mean(df$race == 'white') #probability of being white in the base model 
+        D0.prob <- 
+          1 / (1 + exp(-(as.numeric(X.pretreat.race %*% coef(mod.race.pretreat)))))
       }
       
       ates.chunks <- llply(
