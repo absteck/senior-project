@@ -35,7 +35,7 @@ df$race <- factor(df$RACE, labels = races)
 df <- df[df$PRIM_OFFENSE %in% c("immigration"), ]
 
 outcome <- c('SENTENCE')
-predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'SWB', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'PRIM_OFFENSE', 'YR2007', 'YR2006', 'race')
+predictors <- c('AGE', 'MALE', 'HSGED', 'SOMEPOSTHS', 'POSTHSDEGREE', 'HISPANIC', 'USCITIZEN', 'SWB', 'CRIMINAL', 'CATEGORY2', 'CATEGORY3', 'CATEGORY4', 'CATEGORY5', 'CATEGORY6', 'NOCOUNTS', 'POINTS', 'TRIAL', 'YR2007', 'YR2006', 'YR2005', 'YR2004', 'YR2003', 'YR2002', 'YR2001', 'YR2000', 'race') 
 
 df <- na.omit(df[, c(outcome, predictors)])
 
