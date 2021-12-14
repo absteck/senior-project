@@ -1,6 +1,6 @@
 ---
-title: "Project Report"
-date: "December 12, 2021"
+title: "Estimating Racial Disparities in Sentencing Using Knox, Lowe, and Mummolo's Method"
+date: "December 13, 2021"
 author: "Abby Steckel"
 output:
   html_document: default
@@ -185,7 +185,7 @@ naive_ate_table <- cbind(sentence.quartiles, round(c(naive_ate_3rdq, naive_ate_m
 kable(x=naive_ate_table, 
       format = "html", 
       col.names = c("Sentence Threshold (Months)", "Mean Difference in Probability of Exceeding Threshold"), 
-      caption = "Naive Sentencing Disparity, 2006-2008 Cases")  %>%
+      caption = "Naive Sentencing Disparity, 2006-2008 Cases, Model with All Covariates")  %>%
    kable_classic(full_width = FALSE, html_font = "Cambria", font_size=14)
 ```
 
@@ -351,7 +351,7 @@ naive_ate_table <- cbind(sentence.quartiles, round(c(naive_ate_3rdq, naive_ate_m
 kable(x=naive_ate_table, 
       format = "html", 
       col.names = c("Sentence Threshold (Months)", "Mean Difference in Probability of Exceeding Threshold"), 
-      caption = "Naive Sentencing Disparity, Immigration Cases")  %>%
+      caption = "Naive Sentencing Disparity, Immigration Cases, Model with All Covariates")  %>%
    kable_classic(full_width = FALSE, html_font = "Cambria", font_size=14)
 ```
 
@@ -427,69 +427,96 @@ rownames(table.full_mod) <- c("over 77 months", "over 37 months", "over 15 month
 table.full_mod %>% 
   kbl(caption="Table 1: Average Treatment Effect among 2006-2008 Convictions ($ATE_{M=1}$), by Sentence Quartile, Full Model Specification", 
       format = "html", 
-      digits = 3, 
+      digits = 4, 
       row.names = T, 
       col.names = c("Naive ATE", "Lower Bound", "Upper Bound", "Lower CI", "Upper CI")
       ) %>%  
-  kable_classic(full_width = F, html_font = "Cambria")
+  kable_classic(full_width = F, html_font = "Cambria", position="float_left") %>% 
+  kable_styling() %>% add_footnote("rho = 0.32")
 
-### Base model 
-naive.3rdQ.base <- results[results$qoi=="ates" & results$thresh ==1 &results$rho==0 &results$mod.type =="base", ]
-naive.med.base <- results[results$qoi=="ates" & results$thresh ==2 &results$rho==0 &results$mod.type =="base", ]
-naive.1stQ.base <- results[results$qoi=="ates" & results$thresh ==3 &results$rho==0 &results$mod.type =="base", ]
+### Pretreatment covariate model 
+naive.3rdQ.pretreat <- results[results$qoi=="ates" & results$thresh ==1 &results$rho==0 &results$mod.type =="pretreat", ]
+naive.med.pretreat <- results[results$qoi=="ates" & results$thresh ==2 &results$rho==0 &results$mod.type =="pretreat", ]
+naive.1stQ.pretreat <- results[results$qoi=="ates" & results$thresh ==3 &results$rho==0 &results$mod.type =="pretreat", ]
 
-naive.ate.base <- c(naive.3rdQ.base$est, naive.med.base$est, naive.1stQ.base$est)
+naive.ate.pretreat <- c(naive.3rdQ.pretreat$est, naive.med.pretreat$est, naive.1stQ.pretreat$est)
 
-ate.bounds.3rdQ.base <- results[results$qoi=="ates" & results$thresh ==1 &results$rho == rho.gfk &results$mod.type =="base", ]
-ate.bounds.med.base <- results[results$qoi=="ates" & results$thresh ==2 &results$rho == rho.gfk &results$mod.type =="base", ]
-ate.bounds.1stQ.base <- results[results$qoi=="ates" & results$thresh ==3 &results$rho == rho.gfk &results$mod.type =="base", ]
+ate.bounds.3rdQ.pretreat <- results[results$qoi=="ates" & results$thresh ==1 &results$rho == rho.gfk &results$mod.type =="pretreat", ]
+ate.bounds.med.pretreat <- results[results$qoi=="ates" & results$thresh ==2 &results$rho == rho.gfk &results$mod.type =="pretreat", ]
+ate.bounds.1stQ.pretreat <- results[results$qoi=="ates" & results$thresh ==3 &results$rho == rho.gfk &results$mod.type =="pretreat", ]
 
-lower.bound.base <- c(ate.bounds.3rdQ.base$min, ate.bounds.med.base$min, ate.bounds.1stQ.base$min)
-upper.bound.base <- c(ate.bounds.3rdQ.base$max, ate.bounds.med.base$max, ate.bounds.1stQ.base$max)
-lower.ci.base <- c(ate.bounds.3rdQ.base$min.cilo, ate.bounds.med.base$min.cilo, ate.bounds.1stQ.base$min.cilo)
-upper.ci.base <- c(ate.bounds.3rdQ.base$max.cihi, ate.bounds.med.base$max.cihi, ate.bounds.1stQ.base$max.cihi)
+lower.bound.pretreat <- c(ate.bounds.3rdQ.pretreat$min, ate.bounds.med.pretreat$min, ate.bounds.1stQ.pretreat$min)
+upper.bound.pretreat <- c(ate.bounds.3rdQ.pretreat$max, ate.bounds.med.pretreat$max, ate.bounds.1stQ.pretreat$max)
+lower.ci.pretreat <- c(ate.bounds.3rdQ.pretreat$min.cilo, ate.bounds.med.pretreat$min.cilo, ate.bounds.1stQ.pretreat$min.cilo)
+upper.ci.pretreat <- c(ate.bounds.3rdQ.pretreat$max.cihi, ate.bounds.med.pretreat$max.cihi, ate.bounds.1stQ.pretreat$max.cihi)
   
-table.base_mod <- cbind(naive.ate.base, lower.bound.base, upper.bound.base, lower.ci.base, upper.ci.base)
-rownames(table.base_mod) <- c("over 77 months", "over 37 months", "over 15 months")
+table.pretreat_mod <- cbind(naive.ate.pretreat, lower.bound.pretreat, upper.bound.pretreat, lower.ci.pretreat, upper.ci.pretreat)
+rownames(table.pretreat_mod) <- c("over 77 months", "over 37 months", "over 15 months")
 
-table.base_mod %>% 
-  kbl(caption="Table 2: Average Treatment Effect among 2006-2008 Convictions ($ATE_{M=1}$), by Sentence Quartile, No Covariates", 
+table.pretreat_mod %>% 
+  kbl(caption="Table 2: Average Treatment Effect among 2006-2008 Convictions ($ATE_{M=1}$), by Sentence Quartile, Pretreatment Covariates Only", 
       format = "html", 
-      digits = 3, 
+      digits = 4, 
       row.names = T, 
       col.names = c("Naive ATE", "Lower Bound", "Upper Bound", "Lower CI", "Upper CI")
       ) %>%  
-  kable_classic(full_width = F, html_font = "Cambria")
+  kable_classic(full_width = F, html_font = "Cambria", position="float_left") %>% 
+  kable_styling() %>% add_footnote("rho = 0.32")
 ```
 
 Table 1 and Table 2 compare the naive ATE to the bounds and confidence intervals for $ATE_{M=1}$ when $\rho$ = 0.32. This is the value of $\rho$ that Mummolo et al consider to be a reasonable estimate of the true proportion of racially discriminatory stops, based on a 2007 study of New York's stop and frisk policy by Gelman, Fagan, and Kiss. I'm assuming that the true proportion of racially discriminatory federal convictions is exactly the same as the true proportion of racially discriminatory stops in New York City. This is unrealistic, but I think this choice of $\rho$ can still provide a rough idea of the bias of the naive ATE given that some proportion of cases would not have been included in the sample if the defendant was white. 
 
 Table 1 shows that for each sentence length threshold, the entire 95% confidence interval for $ATE_{M=1}$ exceeds the naive ATE. In other words, the confidence interval that contains the true value of $ATE_{M=1}$ 95% of the time does not include $\hat{\Delta}$, confirming that $\hat{\Delta}$ underestimates the true racial disparity in sentence lengths. 
 
-![alt text](/Users/abbysteckel/Desktop/S&DS_491/output/thresh77_2006-08.png "Title")
-*DISCUSS PLOTS* 
-
-*REPLACE TABLE 2 WITH PRE-TREATMENT VARIABLES MODEL*
-Table 2 compares the naive ATE to the $ATE_{M=1}$ when the response functions involve only the treatment variable (race). Without covariate adjustment, every value of the naive ATE and the $ATE_{M=1}$ intervals is larger than in Table 1. As shown in Table 3, race is positively correlated with covariates including POINTS, which reflects a person's criminal record, and NOCOUNTS and CATEGORY6, which reflect the severity of the current case. It makes sense that when adjusting for covariates that are correlated with the treatment variable and the response, the estimated treatment effect will be smaller relative to the model with no covariates. 
+Table 2 compares the naive ATE to the $ATE_{M=1}$ when the response functions involve only the pre-treatment covariates, so we leave out information about number of counts of conviction, whether the case went to trial, and the primary conviction offense. Without adjusting for these post-treatment covariates, every value of the naive ATE and the $ATE_{M=1}$ intervals is larger than in Table 1. As shown in Table 3, race is positively correlated with the post-treatment covariates TRIAL and NOCOUNTS. Because PRIM_OFFENSE is a categorical variable, I defined an indicator of whether a charge would be considered violent. This indicator not based on a statutory definition, and is rather a rough attempt to evaluate the correlation of the post-treatment covariates with race. Table 3 shows that the prevalence of these more serious convictions does differ significantly by the perceived race of the defendant. To be clear: these tables do *not* suggest that there is an intrinsic difference between the behavior of white and Black people. Rather, the correlation between race and conviction severity reflects the impact of systemic racism prior to and during the conviction stage of a case, which is not captured by the mediating variable. When adjusting for post-treatment covariates that are positively correlated with the treatment variable and the response, the estimated treatment effect is smaller relative to the model without these covariates. 
 
 ```{r, echo=FALSE, message=FALSE}
-mean_black <- c(mean(df$POINTS[df$race1==1]), mean(df$NOCOUNTS[df$race1==1]), mean(df$CATEGORY6[df$race1==1]))
-mean_white <- c(mean(df$POINTS[df$race1==0]), mean(df$NOCOUNTS[df$race1==0]), mean(df$CATEGORY6[df$race1==0]))
-p.vals <- c(t.test(df$race1, df$POINTS)$p.value, t.test(df$race1, df$NOCOUNTS)$p.value, t.test(df$race1, df$CATEGORY6)$p.value)
+severe_prim_off <- ifelse(df$PRIM_OFFENSE %in% c("assault", "firearms", "kidnaping", "manslaughter", "murder", "sexual abuse"), 1, 0)
+mean_black <- c(mean(df$TRIAL[df$race1==1]), mean(df$NOCOUNTS[df$race1==1]), mean(severe_prim_off[df$race1==1]))
+mean_white <- c(mean(df$TRIAL[df$race1==0]), mean(df$NOCOUNTS[df$race1==0]), mean(severe_prim_off[df$race1==0]))
+p.vals <- c(t.test(df$race1, df$TRIAL)$p.value, t.test(df$race1, df$NOCOUNTS)$p.value, t.test(df$race1, severe_prim_off)$p.value)
 
 t.test.table <- cbind(mean_black, mean_white, p.vals)
-row.names(t.test.table) <- c("POINTS", "NOCOUNTS", "CATEGORY6")
+row.names(t.test.table) <- c("TRIAL", "NOCOUNTS", "SERIOUS CHARGE")
 
 t.test.table %>% 
-  kbl(caption="Table 3: Race is Predictive of Covariates", 
+  kbl(caption="Table 3: Race is Predictive of Post-Treatment Covariates", 
       format = "html", 
       digits = 3,
       row.names = T,
       col.names = c("$Mean_{D_i=1}$", "$Mean_{D_i=0}$", "P Value")
       ) %>%  
-  kable_classic(full_width = F, html_font = "Cambria")
+  kable_classic(full_width = F, html_font = "Cambria", position="float_left")
 
 ```
+
+
+**Estimated Discriminatory Sentences Over 77 Months, Immigration Cases**
+![alt text](/Users/abbysteckel/Desktop/S&DS_491/output/thresh77_pretreat_vs_full.png "Bounds for Over 77-Month Sentence")
+
+**Estimated Discriminatory Sentences Over 37 Months, 2006-08 Cases**
+![alt text](/Users/abbysteckel/Desktop/S&DS_491/output/thresh37_pretreat_vs_full.png "Bounds for Over 37-Month Sentence")
+
+**Estimated Discriminatory Sentences Over 15 Months, 2006-08 Cases**
+![alt text](/Users/abbysteckel/Desktop/S&DS_491/output/thresh15_pretreat_vs_full.png "Bounds for Over 15-Month Sentence")
+These plots show the bounds and confidence intervals for $ATE_{M=1}$ and $ATT_{M=1}$ for a sequence of possible values of $\rho$, represented by the x-axis. The three different plots consider the response variable as whether the sentence length exceeds the third quartile, median, or first quartile sentence length, respectively. Note that while Tables 1 through 4 show the treatment effect as a proportion of individuals who received discriminatory sentences, the y-axis in the plots is scaled by the number of cases in the sample. So in this case, $ATE_{M=1}$ refers to the number of cases that would have had different outcomes if the defendant was of a different race. The opaque red shape represents the bounds for $ATE_{M=1}$. The light red shading covers the confidence interval for the $ATE_{M=1}$ bounds. We see that the confidence intervals are very near the bounds, which is what we expect with a large sample size. The dashed line represents the point estimates for $ATT_{M=1}$. $ATT_{M=1}$ is scaled by the number of cases involving Black people, while $ATE_{M=1}$ is scaled by the total number of cases. 
+
+The shape and size of the bounds differs depending on where we set the sentence length threshold for the response variable. For each threshold, the bounds for higher values of $\rho$ are wider. This increase in bound width is also seen in Mummolo et al's plots. *intuitive explanation?* For large values of $\rho$, there appears to be greater uncertainty about the correct $ATE_{M=1}$ for higher sentence length thresholds. But for smaller values of $\rho$, including Mummolo et al's conservative estimate of $\rho = 0.32$, the bounds for the highest sentence length threshold are the narrowest. Specifically, using the model with only pretreatment covariates, the number of cases affected by discriminatory sentences above 77 months is estimated to be between 16,184 and 29,679 people; for sentences longer than 37 months, somewhere between 22,634 and 48,035 are estimated as discriminatory; and for sentences over 15 months, between 20,958 and 44,764 are labeled discriminatory. I think that the smaller treatment effect estimate for longer sentences may be related to the aforementioned correlation between measures of conviction severity and perceived race. Again, this emphasizes how difficult it is to control for the impact of systemic racism throughout the criminal legal process. Overall, I am not sure how to explain why changing the coding of the response variable changes the magnitude and range of the estimated $ATE_{M=1}$ in the way we observe.   
+
+One general observation is that the scaled $ATT_{M=1}$ is less than the lower bound of the scaled $ATE_{M=1}$. As stated above, the mechanical reason for this is, broadly, that $ATE_{M=1}$ is scaled by the total sample population while $ATT_{M=1}$ is scaled by the number of Black people in the sample. The motivation for this is that $ATT_{M=1}$ quantifies the number of cases involving a Black person that would not have resulted in a sentence above the threshold if the defendant were white, while $ATE_{M=1}$ also counts the number of cases involving a white person that would have resulted in a conviction if they were Black. This is also why it's possible for $ATE_{M=1}$ to exceed the proportion of Black people in the sample (about 0.2735), as we observe in the estimated ATE bounds. 
+
+Specifically, the lower bound of $ATE_{M=1} > P(D_i=1|M_i=1)$ when 
+\[
+\begin{align*}
+\mathbb{E}[\hat{\Delta}] + \rho\mathbb{E}[Y_i|D_i=0, M_i=1](1-P(D_i=0|M_i=1)) \gt P(D_i=1|M_i=1) \\
+\mathbb{E}[\hat{\Delta}] + \rho\mathbb{E}[Y_i|D_i=0, M_i=1](P(D_i=1|M_i=1)) \gt P(D_i=1|M_i=1) \\
+\mathbb{E}[\hat{\Delta}] > (1 - \rho\mathbb{E}[Y_i|D_i=0, M_i=1])P(D_i=1|M_i=1)\\
+\frac{\mathbb{E}[\hat{\Delta}]}{1 - \rho\mathbb{E}[Y_i|D_i=0, M_i=1]} > P(D_i=1|M_i=1)\\
+\frac{E[Y_i|D_i=1,M_i=1] - E[Y_i|D_i=0,M_i=1]}{1 - \rho\mathbb{E}[Y_i|D_i=0, M_i=1]} > P(D_i=1|M_i=1)
+\end{align*}
+\]
+
+The form of the inequality indicates that all else equal, larger values of $\rho$ make it more likely that we'll see the lower bound of $ATE_{M=1}$ exceed the proportion of the Black people in the sample, which is consistent with the results shown in the plots.  
 
 
 ### Results for Immigration Convictions
@@ -530,31 +557,70 @@ table.full_mod <- cbind(naive.ate, lower.bound, upper.bound, lower.ci, upper.ci)
 rownames(table.full_mod) <- c("over 37 months", "over 21 months", "over 10 months")
 
 table.full_mod %>% 
-  kbl(caption="Table 4: Average Treatment Effect among Immigration Convictions ($ATE_{M=1}$), by Sentence Quartile, Full Model Specification", 
+  kbl(caption="Table 3: Average Treatment Effect among Immigration Convictions ($ATE_{M=1}$), by Sentence Quartile, Full Model Specification", 
       format = "html", 
-      digits = 3, 
+      digits = 4, 
       row.names = T, 
       col.names = c("Naive ATE", "Lower Bound", "Upper Bound", "Lower CI", "Upper CI")
       ) %>%  
-  kable_classic(full_width = F, html_font = "Cambria")
+  kable_classic(full_width = F, html_font = "Cambria") %>% 
+  kable_styling() %>% add_footnote("rho = 0.32")
+
+naive.3rdQ.pretreat <- results[results$qoi=="ates" & results$thresh ==1 &results$rho==0 &results$mod.type =="pretreat", ]
+naive.med.pretreat <- results[results$qoi=="ates" & results$thresh ==2 &results$rho==0 &results$mod.type =="pretreat", ]
+naive.1stQ.pretreat <- results[results$qoi=="ates" & results$thresh ==3 &results$rho==0 &results$mod.type =="pretreat", ]
+
+naive.ate.pretreat <- c(naive.3rdQ.pretreat$est, naive.med.pretreat$est, naive.1stQ.pretreat$est)
+
+ate.bounds.3rdQ.pretreat <- results[results$qoi=="ates" & results$thresh ==1 &results$rho == rho.gfk &results$mod.type =="pretreat", ]
+ate.bounds.med.pretreat <- results[results$qoi=="ates" & results$thresh ==2 &results$rho == rho.gfk &results$mod.type =="pretreat", ]
+ate.bounds.1stQ.pretreat <- results[results$qoi=="ates" & results$thresh ==3 &results$rho == rho.gfk &results$mod.type =="pretreat", ]
+
+lower.bound.pretreat <- c(ate.bounds.3rdQ.pretreat$min, ate.bounds.med.pretreat$min, ate.bounds.1stQ.pretreat$min)
+upper.bound.pretreat <- c(ate.bounds.3rdQ.pretreat$max, ate.bounds.med.pretreat$max, ate.bounds.1stQ.pretreat$max)
+lower.ci.pretreat <- c(ate.bounds.3rdQ.pretreat$min.cilo, ate.bounds.med.pretreat$min.cilo, ate.bounds.1stQ.pretreat$min.cilo)
+upper.ci.pretreat <- c(ate.bounds.3rdQ.pretreat$max.cihi, ate.bounds.med.pretreat$max.cihi, ate.bounds.1stQ.pretreat$max.cihi)
+  
+table.pretreat_mod <- cbind(naive.ate.pretreat, lower.bound.pretreat, upper.bound.pretreat, lower.ci.pretreat, upper.ci.pretreat)
+rownames(table.pretreat_mod) <- c("over 77 months", "over 37 months", "over 15 months")
+
+table.pretreat_mod %>% 
+  kbl(caption="Table 4: Average Treatment Effect among Immigration Convictions ($ATE_{M=1}$), by Sentence Quartile, Pretreatment Covariates Only", 
+      format = "html", 
+      digits = 4, 
+      row.names = T, 
+      col.names = c("Naive ATE", "Lower Bound", "Upper Bound", "Lower CI", "Upper CI")
+      ) %>%  
+  kable_classic(full_width = F, html_font = "Cambria") %>% 
+  kable_styling() %>% add_footnote("rho = 0.32")
 ```
 
-*Compare naive ATE to ATE_M=1 bounds*
+For $\rho = 0.32$, the lower bound on $ATE_{M=1}$ is very slightly greater than the naive ATE, but the lower bound of the confidence interval for $ATE_{M=1}$ is less than the naive ATE. This is true for all three sentence length thresholds. There isn't much of a difference between the bounds for the different sentence length thresholds, except perhaps for the low bound for the 1st quartile threshold. Overall, the bounds computed for the immigration data do not provide evidence that the unbiased treatment effect is greater than the naive estimate of the proportion of discriminatory immigration sentences. 
 
-*explain why ATT < ATE*
+**Estimated Discriminatory Sentences Over 37 Months, Immigration Cases**
+![alt text](/Users/abbysteckel/Desktop/S&DS_491/output/imm_3rdQ_plot.png "Bounds for 3rd Q Imm")
 
+**Estimated Discriminatory Sentences Over 21 Months, Immigration Cases**
+![alt text](/Users/abbysteckel/Desktop/S&DS_491/output/imm_med_plot.png "Bounds for Median Imm")
 
-*explain why it is possible for ATE_M=1 to exceed the proportion of Black folks in the sample*
+**Estimated Discriminatory Sentences Over 10 Months, Immigration Cases**
+![alt text](/Users/abbysteckel/Desktop/S&DS_491/output/imm_1stQ_plot.png "Bounds for 1st Q Imm")
+For the immigration data, there is barely any difference between the bounds computed using the model with the post-treatment TRIAL and NOCOUNTS covariates, versus the bounds using the model without these variables. This seems like a good indicator that the immigration cases are indeed more homogenous than the full set of cases. It seems more plausible, with the immigration data, to assert that race is randomly assigned conditional on pre-treatment covariates. Unfortunately, although Mummolo et al's assumptions seem a bit more reasonable for the immigration data, the bounds on $ATE_{M=1}$ aren't very informative. Particularly for the 1st quartile sentence threshold, the bounds and confidence intervals are very wide, in places dipping below 0, which is clearly incorrect. As stated above, the large value of $P(D_i=0|M_i=1)$ contributes to this particularly low bound. 
 
-*Discuss difference between ATE_M=1 for different sentence thresholds (there isn't really a difference)*
+Comparing the results for all 2006-2008 cases to the immigration cases, the immigration data is more homogenous, which we see in the fact that controlling for post-treatment covariates changes the results very little. Nonetheless, comparing Tables 2 and 4, the bounds for the immigration $ATE_{M=1}$ are ultimately more uncertain, even when modeling the 2006-08 data with only pre-treatment covariates. 
 
-*compare results for all convictions vs immigration subset. mainly just observe that the immigration data is more homogenous*
-
+*other limitations/questions for future research?*
 
 <P style="page-break-before: always">
 ## Appendix 
 ### Data Cleaning Process  
 
-The data from the US Sentencing Commission is available to download in ASCII, SAS, or SPSS formats. I chose to use the data formatted for SPSS because I found R packages for this conversion. One difficulty was that the SPSS files for 2000-2005 are different from those for 2006-2008. For the earlier years, the data comes in a .txt file with a .sps setup file. For the later years, the data and metadata comes in one .sav file. For 2000-2005, I used "asciiSetupReader" to parse the .sps setup file for the SPSS-formatted data and then read the .txt data file according to that format. For 2006 onward, I used the "foreign" package, which has an easy-to-use read.spss() function for files with the .sav extension. To verify that the .sav files were loaded properly, I *used Python. harder to verify for the unwieldy .txt files. compared to Hagen's summary stats*
+The data from the US Sentencing Commission is available to download in ASCII, SAS, or SPSS formats. I chose to use the data formatted for SPSS because I found R packages for this conversion. One difficulty was that the SPSS files for 2000-2005 are different from those for 2006-2008. For the earlier years, the data comes in a .txt file with a .sps setup file. For the later years, the data and metadata comes in one .sav file. For 2000-2005, I used "asciiSetupReader" to parse the .sps setup file for the SPSS-formatted data and then read the .txt data file according to that format. For 2006 onward, I used the "foreign" package, which has an easy-to-use read.spss() function for files with the .sav extension. To verify that the .sav files were loaded properly, I tried importing data into Python and checking that it matched the corresponding R dataframe. I used the read_spss function from the pandas module. I obtained the same number of observations, the same number of NAs, and the same summary statistics for the 2006 data in R and Python. I did not find a Python package for importing the old SPSS data with .sps and .txt files. To check my work in loading these files into R, I compared the number of observations and the mean value of each variable to the values in Hagen's paper. There are a few small discrepancies between my and Hagen's summary statistics, which I believe come from data cleaning choices including whether to code certain observations as 0 or NA. I also ended up with 65 more observations than Hagen, but in a dataset with over 500,000 observations, this is hopefully an inconsequential difference.  
 
-The data is provided by year, so I had to combine several files to create a multi-year dataset. *discuss inconsistencies with data types and variable names*
+The Sentencing Commission data is provided by year, so I had to combine several files to create a multi-year dataset. Variable names varied slightly from year-to-year, so I checked each year's codebook to figure out which variable names represented the same quantity. I then renamed the variables to have consistent names. I created indicator variables for each year from 2000 to 2008 to identify which dataset each observation came from. Each dataset includes cases sentenced from October of the previous year through September of the indicated year. Variables also had different formats from year to year. The different packages that I used to import the data and the different ways that values were recorded by the Sentencing Commission meant that observations for a single variable might be numeric, factor, or character data. I chose an appropriate data type for each variable and converted all observations to that type, making sure not to create NAs in the process. After this, I combined the data from all years. 
+
+I re-coded several variables to make for a more easily interpretable model. The Sentencing Commission provides an education variable with many categories for an individual's highest level of educational attainment. Following Hagen's paper, I created indicators of whether someone obtained a high school GED, whether they received some post-secondary education, and whether they obtained a post-secondary degree. For the sentence length variable, I recoed sentences of "990 months or more" as 990. I recoded life sentences to 945.6 or 78.8 years, which was the average life expectancy for the total U.S. population in 2019.^[https://www.cdc.gov/nchs/data/vsrr/VSRR10-508.pdf]. Hagen found differences in immigration case outcomes depending on whether cases were adjudicated in the Southwest Border region of the U.S., so I used the judicial districts that Hagen identified to create a Southwest Border indicator. I also followed Hagen in creating six indicators of whether an individual's criminal history was designated as Category 1 through 6, 6 being the most serious. I also recoded text responses so that responses that had the same meaning had the same value (e.g. I made sure that abbreviations were consistent). Finally, I re-coded the primary offense variable to provide brief qualitative descriptions of the conviction. Many of the convictions were originally described by numeric codes. 
+
+I wrote the cleaned dataframe to a compressed .csv.gz file. I verified that when I loaded and unzipped the file, the data had the expected format and summary statistics. For subsequent analysis, I began by loading this clean data file. 
+
+*link to github*
