@@ -1,1 +1,9 @@
-This is a folder for storing data
+This folder contains the U.S. Sentencing Commission data that I downloaded via ICPSR. 
+This page lists the datasets for all years: https://www.icpsr.umich.edu/web/ICPSR/series/83
+
+spss_2000_data.txt.zip is a renamed and compressed version of the Part 1 data file from downloading the 1999-2000 data in the SPSS format. 
+spss_2000_setup.sps is the corresponding setup file. 
+
+spss_2001_data.txt.zip is the Part 1 data from downloading the 2001 data in SPSS format. 
+
+And so on... 
