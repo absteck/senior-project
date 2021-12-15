@@ -635,4 +635,7 @@ I re-coded several variables to make for a more easily interpretable model. The 
 
 I wrote the cleaned dataframe to a compressed .csv.gz file. I verified that when I loaded and unzipped the file, the data had the expected format and summary statistics. For subsequent analysis, I began by loading this clean data file. 
 
-*link to github*
+### Github Repository 
+This repository contains data used, a data cleaning script, scripts for computing bounds and creating plots (modified from Knox et al's replication code), and results. 
+
+https://github.com/absteck/senior-project
