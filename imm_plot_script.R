@@ -160,7 +160,7 @@ results$thresh.label <- factor(
 results$race.label <- factor(
   results$treat.race, #treat.race = black 
   levels = c('black'),
-  labels = c('Black civilians'),
+  labels = c('Estimated Bounds on Sentencing Disparity'),
   ordered = TRUE
 )
 
@@ -174,7 +174,7 @@ results$mod.label <- factor(
 annotations$race.label <- factor(
   annotations$treat.race,
   levels = c('black'),
-  labels = c('Black civilians'),
+  labels = c('Estimated Bounds on Sentencing Disparity'),
   ordered = TRUE
 )
 
@@ -389,7 +389,7 @@ p <- lapply(1:3, function(thresh, quartile) {
                  'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
       )
     ) +
-    ylab(sprintf('Civilians subject to racially\ndiscriminatory sentence, %2s month threshold (thousands)\n', sentence.quartiles[thresh])) +
+    ylab(sprintf('People subject to racially\ndiscriminatory sentence, %2s month threshold (thousands)\n', sentence.quartiles[thresh])) +
     xlab('\nProportion of racially discriminatory convictions') +
     xlim(0, 1) +
     facet_grid(mod.label ~ race.label) +
