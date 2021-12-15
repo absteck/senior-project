@@ -11,4 +11,7 @@ base_vs_full_bounds_script.R and base_vs_full_imm_bounds_script.R - Compute boun
 
 plot_script.R and imm_plot_script.R - Creates plots for results of full_bounds_script.R and imm_bounds_script.R, respectively. Generates separate plots for each sentence length threshold. 
 
+Bounds and plot scripts are adapted from Knox, Lowe, and Mummmolo's replication materials: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/KFQOCV
+
+Specifically, bounds scripts closely follow code in bounds_20190120.R and bounds_20190120_blackwhite.R. Plot scripts follow Knox et al's plots.R and plots_blackwhite.R. I downloaded GelmanFaganKissTable1.csv in order to run the plots code.  
 
