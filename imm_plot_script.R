@@ -41,9 +41,9 @@ df <- na.omit(df[, c(outcome, predictors)])
 
 #create sentence levels  
 sentence.quartiles <- c(
-  'above 37', 
-  'above 21', 
-  'above 10'
+  '37', 
+  '21', 
+  '10'
 )
 
 #add a categorical sentence levels variable to the df dataframe 
@@ -389,7 +389,7 @@ p <- lapply(1:3, function(thresh, quartile) {
                  'TE_ST' = expression('ATT'['M=1'] %*% ' #{convicted minorities}')
       )
     ) +
-    ylab(sprintf('Civilians subject to racially\ndiscriminatory %15s month sentence (thousands)\n', sentence.quartiles[thresh])) +
+    ylab(sprintf('Civilians subject to racially\ndiscriminatory sentence, %2s month threshold (thousands)\n', sentence.quartiles[thresh])) +
     xlab('\nProportion of racially discriminatory convictions') +
     xlim(0, 1) +
     facet_grid(mod.label ~ race.label) +
