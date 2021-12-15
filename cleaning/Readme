@@ -1,3 +1,4 @@
 import_and_clean.Rmd is the file that I used to prepare the data. 
 The process begins with importing and renaming one-year datasets from the U.S. Sentencing Commission, and ends with exporting a big dataset. 
 
+import_sentencing_data.ipynb is where I loaded data into Python to see if it was consistent with what I saw in R. 
