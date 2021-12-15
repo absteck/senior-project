@@ -1,0 +1,3 @@
+import_and_clean.Rmd is the file that I used to prepare the data. 
+The process begins with importing and renaming one-year datasets from the U.S. Sentencing Commission, and ends with exporting a big dataset. 
+
